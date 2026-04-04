@@ -1,0 +1,5 @@
+{
+  "name": "AI Psychogram & Job Fit Generator",
+  "description": "Professional HR tool for generating psychograms and job fit analysis using Gemini AI Vision.",
+  "requestFramePermissions": []
+}
