@@ -32,6 +32,7 @@ const schema = {
     },
     papi: {
       type: Type.ARRAY,
+      description: "Array berisi TEPAT 10 aspek PAPI Kostick yang paling relevan. TIDAK BOLEH KURANG ATAU LEBIH.",
       items: {
         type: Type.OBJECT,
         properties: {
@@ -82,6 +83,7 @@ export async function generatePapiStandard(
       codes_string: { type: Type.STRING },
       top_10: {
         type: Type.ARRAY,
+        description: "Array berisi TEPAT 10 aspek yang paling dibutuhkan. Dilarang keras memberikan lebih atau kurang dari 10.",
         items: {
           type: Type.OBJECT,
           properties: {
@@ -112,7 +114,11 @@ export async function generatePapiStandard(
     });
 
     if (!response.text) throw new Error("AI memberikan respons kosong.");
-    return JSON.parse(response.text);
+    const result = JSON.parse(response.text);
+    if (result.top_10 && Array.isArray(result.top_10)) {
+      result.top_10 = result.top_10.slice(0, 10);
+    }
+    return result;
   } catch (error: any) {
     console.error("PAPI Profiling failed:", error);
     throw new Error(error.message || "Gagal merumuskan profil standar.");
@@ -135,10 +141,10 @@ export async function analyzePsychogram(
   try {
     const papiInstruction = papiStandard 
       ? `SAYA TELAH MENETAPKAN STANDAR UNTUK JABATAN INI. ANDA WAJIB MENGEVALUASI DAN HANYA MENGEMBALIKAN TEPAT 10 ASPEK BERIKUT DALAM ARRAY 'papi': [${papiStandard}]. 
-         DILARANG KERAS memasukkan aspek lain di luar daftar tersebut ke dalam output JSON. 
-         Pastikan kode (code) pada output JSON sama persis dengan kode yang saya berikan.`
+         DILARANG KERAS memasukkan aspek lain di luar daftar 10 kode tersebut. 
+         Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT 10.`
       : `PILIH TEPAT 10 ASPEK PAPI KOSTICK yang PALING KRUSIAL untuk sukses di posisi tersebut. 
-         Array 'papi' dalam JSON HARUS berisi tepat 10 objek, abaikan 10 aspek lainnya yang kurang relevan.`;
+         Array 'papi' dalam JSON HARUS berisi tepat 10 objek (TIDAK BOLEH LEBIH, TIDAK BOLEH KURANG).`;
 
     const systemPrompt = `Anda adalah Ahli Ekstraksi Dokumen Vision AI dan Psikolog Senior HR Sika Indonesia.
 TUGAS UTAMA ANDA ADALAH MELAKUKAN OCR VISUAL PADA DOKUMEN PDF YANG DIBERIKAN DAN MEMBERIKAN ANALISIS JOB FIT.
@@ -160,7 +166,7 @@ KUALITAS ANALISIS:
 - Gunakan bahasa Indonesia yang profesional, tegas, dan analitis.
 - Jika CV tersedia, hubungkan temuan psikotes dengan pengalaman kerja nyata kandidat.
 
-OUTPUT HARUS JSON LENGKAP SESUAI SCHEMA.`;
+OUTPUT HARUS JSON LENGKAP SESUAI SCHEMA DENGAN TEPAT 10 ASPEK PAPI.`;
 
     const jobDescPart = typeof jobDesc === 'string' 
       ? { text: `JOB DESCRIPTION:\n${jobDesc}` }
@@ -193,7 +199,11 @@ OUTPUT HARUS JSON LENGKAP SESUAI SCHEMA.`;
     });
 
     if (!response.text) throw new Error("AI memberikan respons kosong. Pastikan file PDF terbaca dengan jelas.");
-    return JSON.parse(response.text) as PsychogramData;
+    const result = JSON.parse(response.text) as PsychogramData;
+    if (result.papi && Array.isArray(result.papi)) {
+      result.papi = result.papi.slice(0, 10);
+    }
+    return result;
 
   } catch (error: any) {
     console.error(`Analysis failed with model ${selectedModel}:`, error);
