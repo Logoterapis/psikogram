@@ -117,6 +117,8 @@ export async function generatePapiStandard(
     const result = JSON.parse(response.text);
     if (result.top_10 && Array.isArray(result.top_10)) {
       result.top_10 = result.top_10.slice(0, 10);
+      // Force codes_string to match the top 10 only
+      result.codes_string = result.top_10.map((item: any) => item.code).join(', ');
     }
     return result;
   } catch (error: any) {
