@@ -17,7 +17,6 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
   const [jdFile, setJdFile] = useState<{ data: string, mimeType: string } | null>(null);
   const [papiStandard, setPapiStandard] = useState('G, L, I, T, V, S, R, D, C, E');
   const [jdTab, setJdTab] = useState<'text' | 'file'>('text');
-  const [apiKey, setApiKey] = useState('AIzaSyB7h4XyRcx29c256OVDXeXEw9pfnPg8g9s');
   const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
   const [isGeneratingPapi, setIsGeneratingPapi] = useState(false);
   const [generatedPapi, setGeneratedPapi] = useState<{ role_summary: string, codes_string: string, top_10: any[] } | null>(null);
@@ -62,7 +61,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
 
     const jdPayload = jdFile ? jdFile : jobDesc;
 
-    onAnalyze(psikotesBase64, cvBase64, jdPayload, papiStandard, apiKey, selectedModel);
+    onAnalyze(psikotesBase64, cvBase64, jdPayload, papiStandard, "", selectedModel);
   };
 
   const handleGeneratePapi = async () => {
@@ -71,7 +70,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
     setIsGeneratingPapi(true);
     try {
       const jdPayload = jdFile ? jdFile : jobDesc;
-      const result = await generatePapiStandard(jdPayload, apiKey, selectedModel);
+      const result = await generatePapiStandard(jdPayload, "", selectedModel);
       setGeneratedPapi(result);
       setPapiStandard(result.codes_string);
     } catch (error: any) {
@@ -100,16 +99,6 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
 
         {/* API & Model Config */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 p-6 bg-slate-50 rounded-3xl border border-slate-100">
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Gemini API Key</label>
-            <input 
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="w-full p-3 border border-slate-200 rounded-xl text-xs focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition-all bg-white"
-              placeholder="Masukkan API Key Anda..."
-            />
-          </div>
           <div className="space-y-2">
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Pilih Model AI</label>
             <select 
