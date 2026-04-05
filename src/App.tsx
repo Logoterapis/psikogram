@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { InputForm } from './components/InputForm';
 import { ReportView } from './components/ReportView';
+import { HistoryList } from './components/HistoryList';
+import { useHistory } from './hooks/useHistory';
 import { analyzePsychogram } from './lib/gemini';
 import { PsychogramData } from './types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -9,12 +11,14 @@ import { BrainCircuit, Sparkles, ShieldCheck } from 'lucide-react';
 export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [reportData, setReportData] = useState<PsychogramData | null>(null);
+  const { history, saveToHistory, deleteFromHistory, clearHistory } = useHistory();
 
   const handleAnalyze = async (psikotes: string, cv: string | null, jobDesc: string | { data: string, mimeType: string }, papiStandard: string, apiKey: string, model: string) => {
     setIsLoading(true);
     try {
       const data = await analyzePsychogram(psikotes, cv, jobDesc, papiStandard, apiKey, model);
       setReportData(data);
+      saveToHistory(data);
     } catch (error: any) {
       console.error(error);
       alert(error.message || "Analisis gagal. Silakan coba lagi atau periksa file Anda.");
@@ -69,6 +73,15 @@ export default function App() {
                 </p>
               </div>
               <InputForm onAnalyze={handleAnalyze} isLoading={isLoading} />
+              <HistoryList 
+                history={history}
+                onView={(item) => {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  setReportData(item.data);
+                }}
+                onDelete={deleteFromHistory}
+                onClearAll={clearHistory}
+              />
             </motion.div>
           ) : (
             <motion.div
