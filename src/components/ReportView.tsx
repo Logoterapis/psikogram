@@ -15,7 +15,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack }) => {
 
   if (!data) return null;
 
-  const radarData = (data.papi || []).slice(0, 10).map(p => ({
+  const radarData = (data.papi || []).map(p => ({
     subject: p.code || '?',
     A: parseInt(p.score) || 0,
     fullMark: 9,
@@ -189,7 +189,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack }) => {
                   />
                 </RadarChart>
               </ResponsiveContainer>
-              <p className="text-[10px] text-center text-slate-400 mt-2 font-medium italic">Visualisasi 10 Aspek Krusial Jabatan</p>
+              <p className="text-[10px] text-center text-slate-400 mt-2 font-medium italic">Visualisasi {data.papi?.length || 0} Aspek Krusial Jabatan</p>
             </div>
             
             <div className="space-y-4">
@@ -203,7 +203,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack }) => {
                 </div>
               </div>
               <p className="text-xs text-slate-500 leading-relaxed italic">
-                Grafik di samping menunjukkan profil kepribadian kandidat pada 10 aspek yang paling relevan dengan tuntutan posisi ini.
+                Grafik di samping menunjukkan profil kepribadian kandidat pada {data.papi?.length || 0} aspek yang paling relevan dengan tuntutan posisi ini.
               </p>
             </div>
           </div>
@@ -219,7 +219,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {(data.papi || []).slice(0, 10).map((p, i) => (
+                {(data.papi || []).map((p, i) => (
                   <tr key={i} className="hover:bg-[#fbfcfd] transition">
                     <td className="p-2 font-bold text-slate-800">{p.aspect_name || '-'} ({p.code || '?'})</td>
                     <td className="p-2 text-center font-black text-slate-900">{p.score || '-'}</td>

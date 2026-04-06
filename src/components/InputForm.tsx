@@ -18,8 +18,9 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
   const [papiStandard, setPapiStandard] = useState('G, L, I, T, V, S, R, D, C, E');
   const [jdTab, setJdTab] = useState<'text' | 'file'>('text');
   const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
+  const [papiCount, setPapiCount] = useState(10);
   const [isGeneratingPapi, setIsGeneratingPapi] = useState(false);
-  const [generatedPapi, setGeneratedPapi] = useState<{ role_summary: string, codes_string: string, top_10: any[] } | null>(null);
+  const [generatedPapi, setGeneratedPapi] = useState<{ role_summary: string, codes_string: string, papi_aspects: any[] } | null>(null);
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -70,7 +71,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
     setIsGeneratingPapi(true);
     try {
       const jdPayload = jdFile ? jdFile : jobDesc;
-      const result = await generatePapiStandard(jdPayload, "", selectedModel);
+      const result = await generatePapiStandard(jdPayload, papiCount, "", selectedModel);
       setGeneratedPapi(result);
       setPapiStandard(result.codes_string);
     } catch (error: any) {
@@ -267,8 +268,23 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
                   <Info className="w-4 h-4 text-red-600" />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-red-900 uppercase tracking-wider">4. Standar 10 Aspek PAPI Kostick (Wajib)</label>
-                  <p className="text-[11px] text-red-600 font-medium mt-1">Gunakan 10 kode aspek standar untuk akurasi Job Fit maksimal.</p>
+                  <label className="block text-sm font-bold text-red-900 uppercase tracking-wider">4. Standar {papiCount} Aspek PAPI Kostick (Wajib)</label>
+                  <p className="text-[11px] text-red-600 font-medium mt-1">Gunakan {papiCount} kode aspek standar untuk akurasi Job Fit maksimal.</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">Jumlah Aspek:</label>
+                  <select 
+                    value={papiCount}
+                    onChange={(e) => setPapiCount(parseInt(e.target.value))}
+                    className="p-1.5 border border-red-200 rounded-lg text-xs font-bold focus:ring-2 focus:ring-red-500/20 outline-none bg-white cursor-pointer"
+                  >
+                    {[5, 6, 7, 8, 9, 10].map(n => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <button 
@@ -336,7 +352,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-50">
-                            {generatedPapi.top_10.map((item, i) => (
+                            {generatedPapi.papi_aspects.map((item, i) => (
                               <tr key={i} className="hover:bg-slate-50/50 transition">
                                 <td className="p-2 font-bold text-slate-800">{item.name} <span className="text-red-600">({item.code})</span></td>
                                 <td className="p-2 text-center font-black text-blue-600">{item.ideal_range}</td>
