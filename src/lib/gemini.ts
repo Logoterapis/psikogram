@@ -32,7 +32,7 @@ const schema = {
     },
     papi: {
       type: Type.ARRAY,
-      description: "Array berisi TEPAT 10 aspek PAPI Kostick yang paling relevan. TIDAK BOLEH KURANG ATAU LEBIH.",
+      description: "Array berisi TEPAT 7 aspek PAPI Kostick yang paling relevan. TIDAK BOLEH KURANG ATAU LEBIH.",
       items: {
         type: Type.OBJECT,
         properties: {
@@ -68,22 +68,22 @@ export async function generatePapiStandard(
   jobDesc: string | { data: string, mimeType: string },
   customApiKey?: string,
   selectedModel: string = "gemini-2.5-flash"
-): Promise<{ role_summary: string, codes_string: string, top_10: any[] }> {
+): Promise<{ role_summary: string, codes_string: string, top_7: any[] }> {
   const apiKey = customApiKey || process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("API Key tidak ditemukan.");
 
   const ai = new GoogleGenAI({ apiKey });
 
-  const systemPrompt = `Anda adalah Ahli Job Profiling HR Sika Indonesia. Analisis Job Description yang diberikan dan tentukan TEPAT 10 Aspek PAPI Kostick (dari 20 aspek: N,G,A,L,P,I,T,V,X,S,B,O,R,D,C,Z,E,K,F,W) yang PALING DIBUTUHKAN untuk kesuksesan di posisi tersebut.`;
+  const systemPrompt = `Anda adalah Ahli Job Profiling HR Sika Indonesia. Analisis Job Description yang diberikan dan tentukan TEPAT 7 Aspek PAPI Kostick (dari 20 aspek: N,G,A,L,P,I,T,V,X,S,B,O,R,D,C,Z,E,K,F,W) yang PALING DIBUTUHKAN untuk kesuksesan di posisi tersebut.`;
 
   const schema = {
     type: Type.OBJECT,
     properties: {
       role_summary: { type: Type.STRING },
       codes_string: { type: Type.STRING },
-      top_10: {
+      top_7: {
         type: Type.ARRAY,
-        description: "Array berisi TEPAT 10 aspek yang paling dibutuhkan. Dilarang keras memberikan lebih atau kurang dari 10.",
+        description: "Array berisi TEPAT 7 aspek yang paling dibutuhkan. Dilarang keras memberikan lebih atau kurang dari 7.",
         items: {
           type: Type.OBJECT,
           properties: {
@@ -115,10 +115,10 @@ export async function generatePapiStandard(
 
     if (!response.text) throw new Error("AI memberikan respons kosong.");
     const result = JSON.parse(response.text);
-    if (result.top_10 && Array.isArray(result.top_10)) {
-      result.top_10 = result.top_10.slice(0, 10);
-      // Force codes_string to match the top 10 only
-      result.codes_string = result.top_10.map((item: any) => item.code).join(', ');
+    if (result.top_7 && Array.isArray(result.top_7)) {
+      result.top_7 = result.top_7.slice(0, 7);
+      // Force codes_string to match the top 7 only
+      result.codes_string = result.top_7.map((item: any) => item.code).join(', ');
     }
     return result;
   } catch (error: any) {
@@ -142,11 +142,11 @@ export async function analyzePsychogram(
 
   try {
     const papiInstruction = papiStandard 
-      ? `SAYA TELAH MENETAPKAN STANDAR UNTUK JABATAN INI. ANDA WAJIB MENGEVALUASI DAN HANYA MENGEMBALIKAN TEPAT 10 ASPEK BERIKUT DALAM ARRAY 'papi': [${papiStandard}]. 
-         DILARANG KERAS memasukkan aspek lain di luar daftar 10 kode tersebut. 
-         Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT 10.`
-      : `PILIH TEPAT 10 ASPEK PAPI KOSTICK yang PALING KRUSIAL untuk sukses di posisi tersebut. 
-         Array 'papi' dalam JSON HARUS berisi tepat 10 objek (TIDAK BOLEH LEBIH, TIDAK BOLEH KURANG).`;
+      ? `SAYA TELAH MENETAPKAN STANDAR UNTUK JABATAN INI. ANDA WAJIB MENGEVALUASI DAN HANYA MENGEMBALIKAN TEPAT 7 ASPEK BERIKUT DALAM ARRAY 'papi': [${papiStandard}]. 
+         DILARANG KERAS memasukkan aspek lain di luar daftar 7 kode tersebut. 
+         Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT 7.`
+      : `PILIH TEPAT 7 ASPEK PAPI KOSTICK yang PALING KRUSIAL untuk sukses di posisi tersebut. 
+         Array 'papi' dalam JSON HARUS berisi tepat 7 objek (TIDAK BOLEH LEBIH, TIDAK BOLEH KURANG).`;
 
     const systemPrompt = `Anda adalah Ahli Ekstraksi Dokumen Vision AI dan Psikolog Senior HR Sika Indonesia.
 TUGAS UTAMA ANDA ADALAH MELAKUKAN OCR VISUAL PADA DOKUMEN PDF YANG DIBERIKAN DAN MEMBERIKAN ANALISIS JOB FIT.
@@ -157,7 +157,7 @@ PANDUAN EKSTRAKSI DOKUMEN (HASIL PSIKOTES):
 3. CARI TABEL "PAPI KOSTICK" -> Ekstrak data skor untuk 20 aspek sebagai referensi internal Anda.
 
 PANDUAN OUTPUT JSON (SANGAT PENTING):
-1. Array 'papi' dalam JSON output HARUS BERISI TEPAT 10 OBJEK.
+1. Array 'papi' dalam JSON output HARUS BERISI TEPAT 7 OBJEK.
 2. ${papiInstruction}
 3. Untuk setiap aspek dalam array 'papi', berikan interpretasi mendalam (minimal 2 kalimat) dan alasan relevansinya terhadap Job Desc.
 4. Hitung 'match_percentage' untuk setiap aspek berdasarkan seberapa dekat skor kandidat dengan skor ideal untuk posisi tersebut.
@@ -168,7 +168,7 @@ KUALITAS ANALISIS:
 - Gunakan bahasa Indonesia yang profesional, tegas, dan analitis.
 - Jika CV tersedia, hubungkan temuan psikotes dengan pengalaman kerja nyata kandidat.
 
-OUTPUT HARUS JSON LENGKAP SESUAI SCHEMA DENGAN TEPAT 10 ASPEK PAPI.`;
+OUTPUT HARUS JSON LENGKAP SESUAI SCHEMA DENGAN TEPAT 7 ASPEK PAPI.`;
 
     const jobDescPart = typeof jobDesc === 'string' 
       ? { text: `JOB DESCRIPTION:\n${jobDesc}` }
@@ -203,7 +203,7 @@ OUTPUT HARUS JSON LENGKAP SESUAI SCHEMA DENGAN TEPAT 10 ASPEK PAPI.`;
     if (!response.text) throw new Error("AI memberikan respons kosong. Pastikan file PDF terbaca dengan jelas.");
     const result = JSON.parse(response.text) as PsychogramData;
     if (result.papi && Array.isArray(result.papi)) {
-      result.papi = result.papi.slice(0, 10);
+      result.papi = result.papi.slice(0, 7);
     }
     return result;
 

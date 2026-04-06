@@ -189,7 +189,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack }) => {
                   />
                 </RadarChart>
               </ResponsiveContainer>
-              <p className="text-[10px] text-center text-slate-400 mt-2 font-medium italic">Visualisasi 10 Aspek Krusial Jabatan</p>
+              <p className="text-[10px] text-center text-slate-400 mt-2 font-medium italic">Visualisasi 7 Aspek Krusial Jabatan</p>
             </div>
             
             <div className="space-y-4">
