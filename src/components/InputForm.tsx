@@ -15,11 +15,11 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [jobDesc, setJobDesc] = useState('');
   const [jdFile, setJdFile] = useState<{ data: string, mimeType: string } | null>(null);
-  const [papiStandard, setPapiStandard] = useState('G, L, I, T, V, S, R');
+  const [papiStandard, setPapiStandard] = useState('G, L, I, T, V, S, R, D, C, E');
   const [jdTab, setJdTab] = useState<'text' | 'file'>('text');
   const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
   const [isGeneratingPapi, setIsGeneratingPapi] = useState(false);
-  const [generatedPapi, setGeneratedPapi] = useState<{ role_summary: string, codes_string: string, top_7: any[] } | null>(null);
+  const [generatedPapi, setGeneratedPapi] = useState<{ role_summary: string, codes_string: string, top_10: any[] } | null>(null);
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -267,8 +267,8 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
                   <Info className="w-4 h-4 text-red-600" />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-red-900 uppercase tracking-wider">4. Standar 7 Aspek PAPI Kostick (Wajib)</label>
-                  <p className="text-[11px] text-red-600 font-medium mt-1">Gunakan 7 kode aspek standar untuk akurasi Job Fit maksimal.</p>
+                  <label className="block text-sm font-bold text-red-900 uppercase tracking-wider">4. Standar 10 Aspek PAPI Kostick (Wajib)</label>
+                  <p className="text-[11px] text-red-600 font-medium mt-1">Gunakan 10 kode aspek standar untuk akurasi Job Fit maksimal.</p>
                 </div>
               </div>
               <button 
@@ -301,7 +301,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
                 value={papiStandard}
                 onChange={(e) => setPapiStandard(e.target.value)}
                 className="w-full p-4 border border-red-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition-all bg-white text-slate-900"
-                placeholder="Contoh: L, P, I, T, V, X, S"
+                placeholder="Contoh: L, P, I, T, V, X, S, B, O, R"
               />
 
               <AnimatePresence>
@@ -336,7 +336,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-50">
-                            {generatedPapi.top_7.map((item, i) => (
+                            {generatedPapi.top_10.map((item, i) => (
                               <tr key={i} className="hover:bg-slate-50/50 transition">
                                 <td className="p-2 font-bold text-slate-800">{item.name} <span className="text-red-600">({item.code})</span></td>
                                 <td className="p-2 text-center font-black text-blue-600">{item.ideal_range}</td>
