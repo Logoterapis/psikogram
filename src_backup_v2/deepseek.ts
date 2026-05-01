@@ -1,4 +1,4 @@
-import { PsychogramData, CostDetail, JobProfileAspect } from "../types";
+import { PsychogramData, CostDetail } from "../types";
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions";
 
@@ -21,8 +21,7 @@ interface ExtractedRawData {
 export async function analyzeWithDeepSeek(
   extractedData: ExtractedRawData,
   deepseekApiKey: string,
-  model: string = "deepseek-chat",
-  profileAspects?: JobProfileAspect[]
+  model: string = "deepseek-chat"
 ): Promise<PsychogramData> {
   if (!deepseekApiKey) throw new Error("DeepSeek API Key tidak ditemukan.");
 
@@ -31,33 +30,12 @@ export async function analyzeWithDeepSeek(
     : [];
   const count = standardCodes.length || 10;
 
-  // Build rich standard description with ideal ranges if profile is available
-  let papiInstruction: string;
-  let idealRangeAnchor = '';
-  if (profileAspects && profileAspects.length > 0) {
-    const aspectDetails = profileAspects.map(a => 
-      `- ${a.code} (${a.name}): Skor Ideal = ${a.ideal_range}. Alasan: ${a.reason}`
-    ).join('\n');
-    papiInstruction = `SAYA TELAH MENETAPKAN STANDAR PROFIL JABATAN INI. ANDA WAJIB MENGEVALUASI DAN HANYA MENGEMBALIKAN TEPAT ${count} ASPEK BERIKUT DALAM ARRAY 'papi': [${extractedData.papi_standard}].
-DILARANG KERAS memasukkan aspek lain di luar daftar tersebut.
-Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT ${count}.`;
-    idealRangeAnchor = `\n\nPROFIL STANDAR JABATAN (WAJIB DIIKUTI):\nBerikut adalah skor ideal yang SUDAH DITETAPKAN untuk setiap aspek. Anda WAJIB menggunakan nilai 'ideal_score' yang sesuai dengan rentang di bawah ini. DILARANG mengarang skor ideal sendiri.\n${aspectDetails}`;
-  } else if (extractedData.papi_standard) {
-    papiInstruction = `ANDA WAJIB MENGEVALUASI DAN HANYA MENGEMBALIKAN TEPAT ${count} ASPEK BERIKUT DALAM ARRAY 'papi': [${extractedData.papi_standard}].
+  const papiInstruction = extractedData.papi_standard
+    ? `ANDA WAJIB MENGEVALUASI DAN HANYA MENGEMBALIKAN TEPAT ${count} ASPEK BERIKUT DALAM ARRAY 'papi': [${extractedData.papi_standard}].
        DILARANG KERAS memasukkan aspek lain di luar daftar tersebut.
-       Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT ${count}.`;
-  } else {
-    papiInstruction = `PILIH TEPAT 10 ASPEK PAPI KOSTICK yang PALING KRUSIAL untuk sukses di posisi tersebut.
+       Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT ${count}.`
+    : `PILIH TEPAT 10 ASPEK PAPI KOSTICK yang PALING KRUSIAL untuk sukses di posisi tersebut.
        Array 'papi' dalam JSON HARUS berisi tepat 10 objek.`;
-  }
-
-  const narrativeTemplate = `
-TEMPLATE NARASI (WAJIB DIIKUTI untuk setiap aspek PAPI):
-Gunakan pola narasi berikut agar KONSISTEN di setiap laporan:
-- 'interpretation': "Kandidat memperoleh skor [skor] pada aspek [nama aspek] ([kode]). [Penjelasan mendalam 2-3 kalimat tentang apa yang ditunjukkan skor tersebut terhadap perilaku kerja kandidat]. Dalam konteks posisi yang dilamar, [analisis implikasi skor terhadap tuntutan jabatan]."
-- 'relevance_reason': "Aspek [nama aspek] menjadi krusial untuk posisi ini karena [alasan spesifik terkait job description]. [Penjelasan hubungan aspek dengan keberhasilan di jabatan tersebut]."
-- 'fit': Tentukan berdasarkan jarak skor dengan ideal: gap 0-1 = "Sangat Sesuai", gap 2-3 = "Sesuai", gap 4-5 = "Cukup Sesuai", gap >5 = "Kurang Sesuai".
-- 'match_percentage': Hitung secara konsisten: jika skor kandidat berada dalam rentang ideal = 90-100%, gap 1-2 = 70-89%, gap 3-4 = 50-69%, gap >4 = 20-49%.`;
 
   const systemPrompt = `Anda adalah Psikolog Senior HR Sika Indonesia yang ahli dalam analisis Job Fit.
 Anda akan menerima DATA HASIL EKSTRAKSI dari dokumen psikotes kandidat yang sudah di-OCR oleh Vision AI.
@@ -78,10 +56,8 @@ PANDUAN OUTPUT JSON (SANGAT PENTING):
 2. ${papiInstruction}
 3. Untuk setiap aspek dalam array 'papi', berikan 'interpretation' mendalam (minimal 2 kalimat) dan 'relevance_reason' terhadap Job Desc.
 4. Hitung 'match_percentage' untuk setiap aspek berdasarkan seberapa dekat skor kandidat dengan skor ideal untuk posisi tersebut (0-100).
-5. 'total_job_fit_percentage' adalah rata-rata tertimbang dari Evaluasi CV (34%), Kognitif (33%), dan PAPI (33%).
+5. 'total_job_fit_percentage' adalah rata-rata tertimbang dari Kognitif (40%) dan PAPI (60%).
 6. Tentukan 'fit' sebagai: "Sangat Sesuai", "Sesuai", "Cukup Sesuai", atau "Kurang Sesuai".
-${idealRangeAnchor}
-${narrativeTemplate}
 
 KUALITAS ANALISIS:
 - Jangan memberikan nilai null atau "-" jika data tersedia.
@@ -134,15 +110,7 @@ JOB DESCRIPTION:
 ${extractedData.job_description}
 
 STANDAR PAPI UNTUK POSISI INI:
-${(() => {
-  if (profileAspects && profileAspects.length > 0) {
-    const detailLines = profileAspects.map(a => 
-      `${a.code} (${a.name}): Skor Ideal = ${a.ideal_range} | Alasan: ${a.reason}`
-    ).join('\n');
-    return `Kode: ${extractedData.papi_standard}\n\nDetail per Aspek (WAJIB DIIKUTI):\n${detailLines}`;
-  }
-  return extractedData.papi_standard || "Tidak ditentukan, pilih 10 aspek paling krusial.";
-})()}
+${extractedData.papi_standard || "Tidak ditentukan, pilih 10 aspek paling krusial."}
 
 Silakan analisis dan berikan output JSON sesuai format yang diminta.`;
 

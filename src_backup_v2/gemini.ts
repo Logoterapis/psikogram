@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { PsychogramData, CostDetail, JobProfileAspect } from "../types";
+import { PsychogramData, CostDetail } from "../types";
 
 // ============================================================
 // PRICING CONSTANTS (Gemini 2.5 Flash — April 2026)
@@ -209,8 +209,7 @@ export async function analyzePsychogram(
   jobDesc: string | { data: string, mimeType: string },
   papiStandard: string,
   customApiKey?: string,
-  selectedModel: string = "gemini-2.5-flash",
-  profileAspects?: JobProfileAspect[]
+  selectedModel: string = "gemini-2.5-flash"
 ): Promise<PsychogramData> {
   const apiKey = customApiKey || process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("API Key tidak ditemukan. Silakan masukkan API Key di kolom yang tersedia.");
@@ -221,33 +220,12 @@ export async function analyzePsychogram(
     const standardCodes = papiStandard ? papiStandard.split(',').map(s => s.trim()).filter(Boolean) : [];
     const count = standardCodes.length || 10;
 
-    // Build rich standard description with ideal ranges if profile is available
-    let papiInstruction: string;
-    let idealRangeAnchor = '';
-    if (profileAspects && profileAspects.length > 0) {
-      const aspectDetails = profileAspects.map(a => 
-        `- ${a.code} (${a.name}): Skor Ideal = ${a.ideal_range}. Alasan: ${a.reason}`
-      ).join('\n');
-      papiInstruction = `SAYA TELAH MENETAPKAN STANDAR PROFIL JABATAN INI. ANDA WAJIB MENGEVALUASI DAN HANYA MENGEMBALIKAN TEPAT ${count} ASPEK BERIKUT DALAM ARRAY 'papi': [${papiStandard}].
-DILARANG KERAS memasukkan aspek lain di luar daftar tersebut.
-Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT ${count}.`;
-      idealRangeAnchor = `\n\nPROFIL STANDAR JABATAN (WAJIB DIIKUTI):\nBerikut adalah skor ideal yang SUDAH DITETAPKAN untuk setiap aspek. Anda WAJIB menggunakan nilai 'ideal_score' yang sesuai dengan rentang di bawah ini. DILARANG mengarang skor ideal sendiri.\n${aspectDetails}`;
-    } else if (papiStandard) {
-      papiInstruction = `SAYA TELAH MENETAPKAN STANDAR UNTUK JABATAN INI. ANDA WAJIB MENGEVALUASI DAN HANYA MENGEMBALIKAN TEPAT ${count} ASPEK BERIKUT DALAM ARRAY 'papi': [${papiStandard}]. 
+    const papiInstruction = papiStandard 
+      ? `SAYA TELAH MENETAPKAN STANDAR UNTUK JABATAN INI. ANDA WAJIB MENGEVALUASI DAN HANYA MENGEMBALIKAN TEPAT ${count} ASPEK BERIKUT DALAM ARRAY 'papi': [${papiStandard}]. 
          DILARANG KERAS memasukkan aspek lain di luar daftar tersebut. 
-         Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT ${count}.`;
-    } else {
-      papiInstruction = `PILIH TEPAT 10 ASPEK PAPI KOSTICK yang PALING KRUSIAL untuk sukses di posisi tersebut. 
+         Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT ${count}.`
+      : `PILIH TEPAT 10 ASPEK PAPI KOSTICK yang PALING KRUSIAL untuk sukses di posisi tersebut. 
          Array 'papi' dalam JSON HARUS berisi tepat 10 objek.`;
-    }
-
-    const narrativeTemplate = `
-TEMPLATE NARASI (WAJIB DIIKUTI untuk setiap aspek PAPI):
-Gunakan pola narasi berikut agar KONSISTEN di setiap laporan:
-- 'interpretation': "Kandidat memperoleh skor [skor] pada aspek [nama aspek] ([kode]). [Penjelasan mendalam 2-3 kalimat tentang apa yang ditunjukkan skor tersebut terhadap perilaku kerja kandidat]. Dalam konteks posisi yang dilamar, [analisis implikasi skor terhadap tuntutan jabatan]."
-- 'relevance_reason': "Aspek [nama aspek] menjadi krusial untuk posisi ini karena [alasan spesifik terkait job description]. [Penjelasan hubungan aspek dengan keberhasilan di jabatan tersebut]."
-- 'fit': Tentukan berdasarkan jarak skor dengan ideal: gap 0-1 = "Sangat Sesuai", gap 2-3 = "Sesuai", gap 4-5 = "Cukup Sesuai", gap >5 = "Kurang Sesuai".
-- 'match_percentage': Hitung secara konsisten: jika skor kandidat berada dalam rentang ideal = 90-100%, gap 1-2 = 70-89%, gap 3-4 = 50-69%, gap >4 = 20-49%.`;
 
     const systemPrompt = `Anda adalah Ahli Ekstraksi Dokumen Vision AI dan Psikolog Senior HR Sika Indonesia.
 TUGAS UTAMA ANDA ADALAH MELAKUKAN OCR VISUAL PADA DOKUMEN PDF YANG DIBERIKAN DAN MEMBERIKAN ANALISIS JOB FIT.
@@ -262,9 +240,7 @@ PANDUAN OUTPUT JSON (SANGAT PENTING):
 2. ${papiInstruction}
 3. Untuk setiap aspek dalam array 'papi', berikan interpretasi mendalam (minimal 2 kalimat) dan alasan relevansinya terhadap Job Desc.
 4. Hitung 'match_percentage' untuk setiap aspek berdasarkan seberapa dekat skor kandidat dengan skor ideal untuk posisi tersebut.
-5. 'total_job_fit_percentage' adalah rata-rata tertimbang dari Evaluasi CV (34%), Kognitif (33%), dan PAPI (33%).
-${idealRangeAnchor}
-${narrativeTemplate}
+5. 'total_job_fit_percentage' adalah rata-rata tertimbang dari Kognitif (40%) dan PAPI (60%).
 
 KUALITAS ANALISIS:
 - Jangan memberikan nilai null atau "-" jika angka terlihat di dokumen.
@@ -277,15 +253,6 @@ OUTPUT HARUS JSON LENGKAP SESUAI SCHEMA DENGAN TEPAT ${count} ASPEK PAPI.`;
       ? { text: `JOB DESCRIPTION:\n${jobDesc}` }
       : { inlineData: { mimeType: jobDesc.mimeType, data: jobDesc.data } };
 
-    // Build detailed standard text for the prompt
-    let standardText = `STANDAR PAPI (JIKA ADA):\n${papiStandard}`;
-    if (profileAspects && profileAspects.length > 0) {
-      const detailLines = profileAspects.map(a => 
-        `${a.code} (${a.name}): Skor Ideal = ${a.ideal_range} | Alasan: ${a.reason}`
-      ).join('\n');
-      standardText = `STANDAR PAPI YANG SUDAH DITETAPKAN (WAJIB DIIKUTI):\nKode: ${papiStandard}\n\nDetail per Aspek:\n${detailLines}`;
-    }
-
     const contents = [
       {
         role: "user",
@@ -296,7 +263,7 @@ OUTPUT HARUS JSON LENGKAP SESUAI SCHEMA DENGAN TEPAT ${count} ASPEK PAPI.`;
             { inlineData: { mimeType: "application/pdf", data: cvBase64 } }
           ] : []),
           jobDescPart,
-          { text: standardText }
+          { text: `STANDAR PAPI (JIKA ADA):\n${papiStandard}` }
         ]
       }
     ];

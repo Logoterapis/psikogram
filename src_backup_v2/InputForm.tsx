@@ -1,15 +1,13 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileText, Briefcase, Target, Info, Loader2, FileUp, X, User, CheckCircle2, Save, FolderOpen, Trash2 } from 'lucide-react';
+import { Upload, FileText, Briefcase, Target, Info, Loader2, FileUp, X, User, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import mammoth from 'mammoth';
 import { cn } from '../lib/utils';
 import { generatePapiStandard } from '../lib/gemini';
 import { generatePapiStandardWithDeepSeek } from '../lib/deepseek';
-import { useJobProfiles } from '../hooks/useJobProfiles';
-import { JobProfileAspect } from '../types';
 
 interface InputFormProps {
-  onAnalyze: (psikotes: string, cv: string | null, jobDesc: string, papiStandard: string, apiKey: string, model: string, profileAspects?: JobProfileAspect[]) => void;
+  onAnalyze: (psikotes: string, cv: string | null, jobDesc: string, papiStandard: string, apiKey: string, model: string) => void;
   isLoading: boolean;
 }
 
@@ -24,8 +22,6 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
   const [papiCount, setPapiCount] = useState(10);
   const [isGeneratingPapi, setIsGeneratingPapi] = useState(false);
   const [generatedPapi, setGeneratedPapi] = useState<{ role_summary: string, codes_string: string, papi_aspects: any[] } | null>(null);
-  const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
-  const { profiles, saveProfile, deleteProfile } = useJobProfiles();
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -67,38 +63,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
 
     const jdPayload = jdFile ? jdFile : jobDesc;
 
-    // Get active profile aspects if available
-    const activeProfile = profiles.find(p => p.id === activeProfileId);
-    const profileAspects = activeProfile?.papiAspects || (generatedPapi?.papi_aspects?.map(a => ({ code: a.code, name: a.name, ideal_range: a.ideal_range, reason: a.reason })) || undefined);
-
-    onAnalyze(psikotesBase64, cvBase64, jdPayload, papiStandard, "", selectedModel, profileAspects);
-  };
-
-  const handleSaveProfile = () => {
-    if (!generatedPapi) return;
-    const posName = prompt("Masukkan nama posisi/jabatan untuk profil ini:");
-    if (!posName) return;
-    const saved = saveProfile(
-      posName,
-      generatedPapi.role_summary,
-      generatedPapi.papi_aspects.map(a => ({ code: a.code, name: a.name, ideal_range: a.ideal_range, reason: a.reason })),
-      generatedPapi.codes_string
-    );
-    setActiveProfileId(saved.id);
-    alert(`Profil "${posName}" berhasil disimpan!`);
-  };
-
-  const handleLoadProfile = (profileId: string) => {
-    const profile = profiles.find(p => p.id === profileId);
-    if (!profile) return;
-    setActiveProfileId(profileId);
-    setPapiStandard(profile.codesString);
-    setPapiCount(profile.papiAspects.length);
-    setGeneratedPapi({
-      role_summary: profile.roleSummary,
-      codes_string: profile.codesString,
-      papi_aspects: profile.papiAspects,
-    });
+    onAnalyze(psikotesBase64, cvBase64, jdPayload, papiStandard, "", selectedModel);
   };
 
   const handleGeneratePapi = async () => {
@@ -322,37 +287,6 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
 
           {/* PAPI Standard */}
           <div className="col-span-1 md:col-span-2 bg-red-50/50 p-6 rounded-3xl border border-red-100 space-y-6">
-            {/* Saved Profiles Dropdown */}
-            {profiles.length > 0 && (
-              <div className="bg-white p-4 rounded-2xl border border-amber-200 shadow-sm space-y-3">
-                <div className="flex items-center gap-2">
-                  <FolderOpen className="w-4 h-4 text-amber-600" />
-                  <label className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Profil Jabatan Tersimpan</label>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {profiles.map(p => (
-                    <div key={p.id} className={cn(
-                      "flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-xs font-bold cursor-pointer transition-all",
-                      activeProfileId === p.id
-                        ? "border-amber-500 bg-amber-50 text-amber-800 shadow-sm"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-amber-300"
-                    )}>
-                      <button onClick={() => handleLoadProfile(p.id)} className="flex items-center gap-1.5">
-                        <CheckCircle2 className={cn("w-3.5 h-3.5", activeProfileId === p.id ? "text-amber-500" : "text-slate-300")} />
-                        {p.positionName}
-                      </button>
-                      <button onClick={() => { deleteProfile(p.id); if (activeProfileId === p.id) setActiveProfileId(null); }} className="p-0.5 hover:text-red-500 transition">
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                {activeProfileId && (
-                  <p className="text-[9px] text-amber-600 font-bold italic">✓ Menggunakan profil tersimpan — parameter akan konsisten di setiap analisis.</p>
-                )}
-              </div>
-            )}
-
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-start gap-3">
                 <div className="p-2 bg-red-100 rounded-xl">
@@ -453,16 +387,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
                           </tbody>
                         </table>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <p className="text-[9px] text-red-500 font-bold italic">* Kode di atas telah otomatis diinput ke kolom standar.</p>
-                        <button
-                          onClick={handleSaveProfile}
-                          className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md transition-all hover:-translate-y-0.5"
-                        >
-                          <Save className="w-3.5 h-3.5" />
-                          Simpan Profil Ini
-                        </button>
-                      </div>
+                      <p className="text-[9px] text-red-500 font-bold italic">* Kode di atas telah otomatis diinput ke kolom standar.</p>
                     </div>
                   </motion.div>
                 )}

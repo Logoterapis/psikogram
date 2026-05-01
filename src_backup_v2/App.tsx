@@ -5,7 +5,7 @@ import { HistoryList } from './components/HistoryList';
 import { useHistory } from './hooks/useHistory';
 import { analyzePsychogram, extractRawDataFromPdf } from './lib/gemini';
 import { analyzeWithDeepSeek } from './lib/deepseek';
-import { PsychogramData, JobProfileAspect } from './types';
+import { PsychogramData } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 import { BrainCircuit, Sparkles, ShieldCheck } from 'lucide-react';
 
@@ -14,15 +14,15 @@ export default function App() {
   const [reportData, setReportData] = useState<PsychogramData | null>(null);
   const { history, saveToHistory, deleteFromHistory, clearHistory } = useHistory();
 
-  const handleAnalyze = async (psikotes: string, cv: string | null, jobDesc: string | { data: string, mimeType: string }, papiStandard: string, apiKey: string, model: string, profileAspects?: JobProfileAspect[]) => {
+  const handleAnalyze = async (psikotes: string, cv: string | null, jobDesc: string | { data: string, mimeType: string }, papiStandard: string, apiKey: string, model: string) => {
     setIsLoading(true);
     try {
       let data: PsychogramData;
       if (model === 'deepseek') {
         const extractedData = await extractRawDataFromPdf(psikotes, cv, jobDesc, papiStandard, apiKey, "gemini-2.5-flash");
-        data = await analyzeWithDeepSeek(extractedData, (process.env as any).DEEPSEEK_API_KEY, "deepseek-chat", profileAspects);
+        data = await analyzeWithDeepSeek(extractedData, (process.env as any).DEEPSEEK_API_KEY, "deepseek-chat");
       } else {
-        data = await analyzePsychogram(psikotes, cv, jobDesc, papiStandard, apiKey, model, profileAspects);
+        data = await analyzePsychogram(psikotes, cv, jobDesc, papiStandard, apiKey, model);
       }
       setReportData(data);
       saveToHistory(data);

@@ -48,8 +48,13 @@ export function HistoryList({ history, onView, onDelete, onClearAll }: HistoryLi
             minute: '2-digit'
           });
 
-          // Determine color based on job fit score
-          const score = item.data.conclusion.total_job_fit_percentage;
+          // Calculate job fit score using weighted formula: CV(34%) + Cognitive(33%) + PAPI(33%)
+          const cvMatch = item.data.cv_evaluation?.match_percentage || 0;
+          const cogMatch = item.data.cognitive?.match_percentage || 0;
+          const papiMatch = item.data.papi?.length
+            ? Math.round(item.data.papi.reduce((acc: number, curr: any) => acc + (curr.match_percentage || 0), 0) / item.data.papi.length)
+            : 0;
+          const score = Math.round((cvMatch * 0.34) + (cogMatch * 0.33) + (papiMatch * 0.33));
           let scoreColor = 'text-green-600 bg-green-50 border-green-200';
           if (score < 50) scoreColor = 'text-red-600 bg-red-50 border-red-200';
           else if (score < 75) scoreColor = 'text-yellow-600 bg-yellow-50 border-yellow-200';

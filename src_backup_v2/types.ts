@@ -53,22 +53,6 @@ export interface CostDetail {
   totalRupiah: number;
 }
 
-export interface JobProfileAspect {
-  code: string;
-  name: string;
-  ideal_range: string;
-  reason: string;
-}
-
-export interface JobProfile {
-  id: string;
-  positionName: string;
-  roleSummary: string;
-  papiAspects: JobProfileAspect[];
-  codesString: string;
-  createdAt: number;
-}
-
 export interface PsychogramData {
   identity: Identity;
   cognitive: Cognitive;

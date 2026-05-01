@@ -21,6 +21,19 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack }) => {
     fullMark: 9,
   }));
 
+  // ============================================================
+  // CALCULATED Total Job Fit = CV (34%) + Kognitif (33%) + PAPI (33%)
+  // ============================================================
+  const cvMatchScore = data.cv_evaluation?.match_percentage || 0;
+  const cognitiveMatchScore = data.cognitive?.match_percentage || 0;
+  const papiAvgMatch = data.papi?.length
+    ? Math.round(data.papi.reduce((acc, curr) => acc + (curr.match_percentage || 0), 0) / data.papi.length)
+    : 0;
+
+  const calculatedTotalJobFit = Math.round(
+    (cvMatchScore * 0.34) + (cognitiveMatchScore * 0.33) + (papiAvgMatch * 0.33)
+  );
+
   const downloadPdf = () => {
     window.print();
   };
@@ -273,7 +286,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack }) => {
           <div className="grid grid-cols-3 gap-6 mb-8">
             <div className="col-span-1 bg-slate-50 p-6 rounded-2xl border-2 border-slate-200 flex flex-col items-center justify-center text-center">
               <p className="text-xs font-bold text-slate-400 uppercase mb-2">Total Job Fit</p>
-              <div className="text-5xl font-black text-slate-900 mb-1">{data.conclusion?.total_job_fit_percentage || 0}%</div>
+              <div className="text-5xl font-black text-slate-900 mb-1">{calculatedTotalJobFit}%</div>
               <p className="text-[10px] text-slate-400 font-medium">Weighted Score</p>
             </div>
             
@@ -288,6 +301,43 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack }) => {
                 <p className="text-xs font-bold uppercase text-slate-400 mb-1">Status Rekomendasi</p>
                 <h4 className="text-2xl font-black tracking-tight uppercase">{data.conclusion?.status || 'MENUNGGU HASIL'}</h4>
               </div>
+            </div>
+          </div>
+
+          {/* Job Fit Breakdown */}
+          <div className="grid grid-cols-3 gap-4 mb-8">
+            <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-[10px] font-bold text-blue-500 uppercase">Evaluasi CV</p>
+                <span className="text-xs font-black text-blue-700">Bobot 34%</span>
+              </div>
+              <div className="text-2xl font-black text-blue-700 mb-2">{cvMatchScore}%</div>
+              <div className="w-full bg-blue-100 rounded-full h-2">
+                <div className="bg-blue-600 h-2 rounded-full transition-all" style={{ width: `${cvMatchScore}%` }} />
+              </div>
+              <p className="text-[9px] text-blue-400 mt-1 font-medium">Kontribusi: {Math.round(cvMatchScore * 0.34)}%</p>
+            </div>
+            <div className="bg-purple-50 p-4 rounded-xl border border-purple-200">
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-[10px] font-bold text-purple-500 uppercase">Kognitif (WPT)</p>
+                <span className="text-xs font-black text-purple-700">Bobot 33%</span>
+              </div>
+              <div className="text-2xl font-black text-purple-700 mb-2">{cognitiveMatchScore}%</div>
+              <div className="w-full bg-purple-100 rounded-full h-2">
+                <div className="bg-purple-600 h-2 rounded-full transition-all" style={{ width: `${cognitiveMatchScore}%` }} />
+              </div>
+              <p className="text-[9px] text-purple-400 mt-1 font-medium">Kontribusi: {Math.round(cognitiveMatchScore * 0.33)}%</p>
+            </div>
+            <div className="bg-red-50 p-4 rounded-xl border border-red-200">
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-[10px] font-bold text-red-500 uppercase">PAPI Kostick</p>
+                <span className="text-xs font-black text-red-700">Bobot 33%</span>
+              </div>
+              <div className="text-2xl font-black text-red-700 mb-2">{papiAvgMatch}%</div>
+              <div className="w-full bg-red-100 rounded-full h-2">
+                <div className="bg-red-600 h-2 rounded-full transition-all" style={{ width: `${papiAvgMatch}%` }} />
+              </div>
+              <p className="text-[9px] text-red-400 mt-1 font-medium">Kontribusi: {Math.round(papiAvgMatch * 0.33)}%</p>
             </div>
           </div>
 
