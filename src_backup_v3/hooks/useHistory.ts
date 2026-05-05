@@ -38,20 +38,11 @@ export function useHistory() {
       localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
       return newHistory;
     });
-    return newItem.id;
   };
 
   const deleteFromHistory = (id: string) => {
     setHistory((prev) => {
       const newHistory = prev.filter(item => item.id !== id);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
-      return newHistory;
-    });
-  };
-
-  const updateHistoryItem = (id: string, updatedData: PsychogramData) => {
-    setHistory((prev) => {
-      const newHistory = prev.map(item => item.id === id ? { ...item, data: updatedData } : item);
       localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
       return newHistory;
     });
@@ -65,7 +56,6 @@ export function useHistory() {
   return {
     history,
     saveToHistory,
-    updateHistoryItem,
     deleteFromHistory,
     clearHistory
   };

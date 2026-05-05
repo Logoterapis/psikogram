@@ -12,8 +12,7 @@ import { BrainCircuit, Sparkles, ShieldCheck } from 'lucide-react';
 export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [reportData, setReportData] = useState<PsychogramData | null>(null);
-  const [activeReportId, setActiveReportId] = useState<string | null>(null);
-  const { history, saveToHistory, updateHistoryItem, deleteFromHistory, clearHistory } = useHistory();
+  const { history, saveToHistory, deleteFromHistory, clearHistory } = useHistory();
 
   const handleAnalyze = async (psikotes: string, cv: string | null, jobDesc: string | { data: string, mimeType: string }, papiStandard: string, apiKey: string, model: string, profileAspects?: JobProfileAspect[]) => {
     setIsLoading(true);
@@ -26,8 +25,7 @@ export default function App() {
         data = await analyzePsychogram(psikotes, cv, jobDesc, papiStandard, apiKey, model, profileAspects);
       }
       setReportData(data);
-      const newId = saveToHistory(data);
-      setActiveReportId(newId);
+      saveToHistory(data);
     } catch (error: any) {
       console.error(error);
       let msg = error.message || "Analisis gagal. Silakan coba lagi atau periksa file Anda.";
@@ -93,7 +91,6 @@ export default function App() {
               onView={(item) => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 setReportData(item.data);
-                setActiveReportId(item.id);
               }}
               onDelete={deleteFromHistory}
               onClearAll={clearHistory}
@@ -110,16 +107,7 @@ export default function App() {
               exit={{ opacity: 0, x: -50 }}
               transition={{ duration: 0.5, ease: "circOut" }}
             >
-              <ReportView 
-                data={reportData} 
-                onBack={() => { setReportData(null); setActiveReportId(null); }}
-                onUpdate={(newData) => {
-                  setReportData(newData);
-                  if (activeReportId) {
-                    updateHistoryItem(activeReportId, newData);
-                  }
-                }}
-              />
+              <ReportView data={reportData} onBack={() => setReportData(null)} />
             </motion.div>
           )}
         </AnimatePresence>

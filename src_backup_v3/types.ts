@@ -77,13 +77,4 @@ export interface PsychogramData {
   analysis: Analysis;
   conclusion: Conclusion;
   costs?: CostDetail[];
-  translatedData?: {
-    en?: {
-      cognitive: Cognitive;
-      cv_evaluation: CvEvaluation;
-      papi: PapiAspect[];
-      analysis: Analysis;
-      conclusion: Conclusion;
-    }
-  };
 }
