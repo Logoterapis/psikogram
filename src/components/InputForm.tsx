@@ -5,6 +5,7 @@ import mammoth from 'mammoth';
 import { cn } from '../lib/utils';
 import { generatePapiStandard } from '../lib/gemini';
 import { generatePapiStandardWithDeepSeek } from '../lib/deepseek';
+import { generatePapiStandardWithClaude } from '../lib/claude';
 import { useJobProfiles } from '../hooks/useJobProfiles';
 import { JobProfileAspect } from '../types';
 
@@ -111,6 +112,9 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
       if (selectedModel === 'deepseek') {
         const deepseekApiKey = (process.env as any).DEEPSEEK_API_KEY;
         result = await generatePapiStandardWithDeepSeek(jdPayload, papiCount, deepseekApiKey, "deepseek-chat");
+      } else if (selectedModel === 'claude') {
+        const claudeApiKey = (process.env as any).CLAUDE_API_KEY;
+        result = await generatePapiStandardWithClaude(jdPayload, papiCount, claudeApiKey);
       } else {
         result = await generatePapiStandard(jdPayload, papiCount, "", "gemini-2.5-flash");
       }
@@ -144,7 +148,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
         <div className="mb-8 p-6 bg-slate-50 rounded-3xl border border-slate-100">
           <div className="space-y-3">
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Pilih Model AI Analisis</label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <button
                 type="button"
                 onClick={() => setSelectedModel('gemini-2.5-flash')}
@@ -170,6 +174,19 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
               >
                 <div className="text-xs font-black text-slate-900 mb-1">🧠 DeepSeek (Hybrid)</div>
                 <p className="text-[10px] text-slate-500 font-medium leading-tight">Gemini OCR + DeepSeek Analisis. Narasi mendalam & korporat.</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedModel('claude')}
+                className={cn(
+                  "p-4 rounded-xl border-2 text-left transition-all",
+                  selectedModel === 'claude'
+                    ? "border-purple-500 bg-purple-50 shadow-md"
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                )}
+              >
+                <div className="text-xs font-black text-slate-900 mb-1">🎯 Claude Sonnet (Hybrid)</div>
+                <p className="text-[10px] text-slate-500 font-medium leading-tight">Gemini OCR + Claude Analisis. Presisi tinggi & analitis.</p>
               </button>
             </div>
           </div>
@@ -493,7 +510,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
               </>
             )}
           </button>
-          <p className="text-center text-[10px] text-slate-400 mt-4 font-bold uppercase tracking-widest">Powered by Gemini 2.5 Flash & DeepSeek AI</p>
+          <p className="text-center text-[10px] text-slate-400 mt-4 font-bold uppercase tracking-widest">Powered by Gemini 2.5 Flash, DeepSeek & Claude AI</p>
         </div>
       </motion.div>
     </div>

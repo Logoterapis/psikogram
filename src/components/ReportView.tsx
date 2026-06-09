@@ -55,10 +55,8 @@ const t = {
     notes: 'Catatan Khusus & Saran Wawancara',
     notesNA: 'Tidak ada catatan tambahan.',
     confidential: 'Confidential Document',
-    statusRecommended: 'DISARANKAN',
-    statusFairly: 'CUKUP DISARANKAN',
-    statusLess: 'KURANG DISARANKAN',
-    statusNot: 'TIDAK DISARANKAN',
+    statusSuitable: 'SESUAI',
+    statusNotSuitable: 'TIDAK SESUAI',
     printHeader: 'Laporan Pemeriksaan Psikologi',
     printFooterPrefix: 'Confidential • Sika Indonesia HR Assessment •',
   },
@@ -108,10 +106,8 @@ const t = {
     notes: 'Special Notes & Interview Suggestions',
     notesNA: 'No additional notes.',
     confidential: 'Confidential Document',
-    statusRecommended: 'RECOMMENDED',
-    statusFairly: 'FAIRLY RECOMMENDED',
-    statusLess: 'LESS RECOMMENDED',
-    statusNot: 'NOT RECOMMENDED',
+    statusSuitable: 'SUITABLE',
+    statusNotSuitable: 'NOT SUITABLE',
     printHeader: 'Psychological Assessment Report',
     printFooterPrefix: 'Confidential • Sika Indonesia HR Assessment •',
   },
@@ -119,23 +115,17 @@ const t = {
 
 function getRecommendationStatus(score: number, lang: Lang) {
   const labels = t[lang];
-  if (score >= 70) return labels.statusRecommended;
-  if (score >= 60) return labels.statusFairly;
-  if (score >= 50) return labels.statusLess;
-  return labels.statusNot;
+  if (score >= 60) return labels.statusSuitable;
+  return labels.statusNotSuitable;
 }
 
 function getScoreStatusColor(score: number) {
-  if (score >= 70) return 'text-emerald-600 bg-emerald-50 border-emerald-200';
-  if (score >= 60) return 'text-amber-600 bg-amber-50 border-amber-200';
-  if (score >= 50) return 'text-orange-600 bg-orange-50 border-orange-200';
+  if (score >= 60) return 'text-emerald-600 bg-emerald-50 border-emerald-200';
   return 'text-red-600 bg-red-50 border-red-200';
 }
 
 function getScoreStatusIcon(score: number) {
-  if (score >= 70) return <CheckCircle2 className="w-6 h-6" />;
-  if (score >= 60) return <HelpCircle className="w-6 h-6" />;
-  if (score >= 50) return <AlertTriangle className="w-6 h-6" />;
+  if (score >= 60) return <CheckCircle2 className="w-6 h-6" />;
   return <AlertCircle className="w-6 h-6" />;
 }
 

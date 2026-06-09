@@ -5,6 +5,7 @@ import { HistoryList } from './components/HistoryList';
 import { useHistory } from './hooks/useHistory';
 import { analyzePsychogram, extractRawDataFromPdf } from './lib/gemini';
 import { analyzeWithDeepSeek } from './lib/deepseek';
+import { analyzeWithClaude } from './lib/claude';
 import { PsychogramData, JobProfileAspect } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 import { BrainCircuit, Sparkles, ShieldCheck } from 'lucide-react';
@@ -22,6 +23,9 @@ export default function App() {
       if (model === 'deepseek') {
         const extractedData = await extractRawDataFromPdf(psikotes, cv, jobDesc, papiStandard, apiKey, "gemini-2.5-flash");
         data = await analyzeWithDeepSeek(extractedData, (process.env as any).DEEPSEEK_API_KEY, "deepseek-chat", profileAspects);
+      } else if (model === 'claude') {
+        const extractedData = await extractRawDataFromPdf(psikotes, cv, jobDesc, papiStandard, apiKey, "gemini-2.5-flash");
+        data = await analyzeWithClaude(extractedData, (process.env as any).CLAUDE_API_KEY, "claude-sonnet-4-20250514", profileAspects);
       } else {
         data = await analyzePsychogram(psikotes, cv, jobDesc, papiStandard, apiKey, model, profileAspects);
       }
