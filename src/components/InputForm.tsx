@@ -7,16 +7,24 @@ import { generatePapiStandard } from '../lib/gemini';
 import { generatePapiStandardWithDeepSeek } from '../lib/deepseek';
 import { generatePapiStandardWithClaude } from '../lib/claude';
 import { useJobProfiles } from '../hooks/useJobProfiles';
-import { JobProfileAspect } from '../types';
+import { JobProfileAspect, CandidatePair } from '../types';
 
 interface InputFormProps {
-  onAnalyze: (psikotes: string, cv: string | null, jobDesc: string, papiStandard: string, apiKey: string, model: string, profileAspects?: JobProfileAspect[]) => void;
+  onAnalyze: (
+    candidates: { name: string; psikotesBase64: string; cvBase64: string | null }[],
+    jobDesc: string | { data: string, mimeType: string },
+    papiStandard: string,
+    apiKey: string,
+    model: string,
+    profileAspects?: JobProfileAspect[]
+  ) => void;
   isLoading: boolean;
 }
 
 export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) => {
-  const [psikotesFile, setPsikotesFile] = useState<File | null>(null);
-  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [psikotesFiles, setPsikotesFiles] = useState<File[]>([]);
+  const [cvFiles, setCvFiles] = useState<File[]>([]);
+  const [candidatePairs, setCandidatePairs] = useState<CandidatePair[]>([]);
   const [jobDesc, setJobDesc] = useState('');
   const [jdFile, setJdFile] = useState<{ data: string, mimeType: string } | null>(null);
   const [papiStandard, setPapiStandard] = useState('G, L, I, T, V, S, R, D, C, E');
@@ -36,6 +44,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
       reader.onerror = error => reject(error);
     });
   };
+
 
   const handleJdFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -59,20 +68,93 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
     }
   };
 
+  const updateCandidatePairs = (psikotesList: File[], cvList: File[]) => {
+    const cleanName = (name: string) => {
+      return name
+        .toLowerCase()
+        .replace(/\.pdf$/, '')
+        .replace(/\.docx$/, '')
+        .replace(/(psikotes|wpt|papi|cv|resume|hasil|tes|jobfit|sika)/gi, '')
+        .replace(/[^a-z0-9]/g, '')
+        .trim();
+    };
+
+    const newPairs = psikotesList.map((psikotes) => {
+      // Coba tebak nama kandidat dari nama file
+      let guessedName = psikotes.name
+        .replace(/\.pdf$/i, '')
+        .replace(/(psikotes|wpt|papi|hasil|tes|sika)/gi, '')
+        .replace(/[_-]/g, ' ')
+        .trim();
+      
+      // Kapitalisasi setiap kata
+      guessedName = guessedName.split(' ')
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ')
+        .trim() || 'Kandidat';
+
+      const cleanPsikotesName = cleanName(psikotes.name);
+
+      // Cari CV yang mirip namanya
+      let bestCv: File | null = null;
+      if (cvList.length > 0) {
+        bestCv = cvList.find(cv => cleanName(cv.name) === cleanPsikotesName) || cvList[0] || null;
+      }
+
+      return {
+        id: crypto.randomUUID(),
+        name: guessedName,
+        psikotesFile: psikotes,
+        cvFile: bestCv,
+      };
+    });
+
+    setCandidatePairs(newPairs);
+  };
+
+  const handlePsikotesChange = (files: FileList | null) => {
+    if (!files) return;
+    const selected = Array.from(files).slice(0, 5); // Maksimal 5 file
+    setPsikotesFiles(selected);
+    updateCandidatePairs(selected, cvFiles);
+  };
+
+  const handleCvChange = (files: FileList | null) => {
+    if (!files) return;
+    const selected = Array.from(files).slice(0, 5); // Maksimal 5 file
+    setCvFiles(selected);
+    updateCandidatePairs(psikotesFiles, selected);
+  };
+
+
   const handleSubmit = async () => {
-    if (!psikotesFile) return alert("Mohon unggah file PDF hasil Psikotes.");
+    if (candidatePairs.length === 0) return alert("Mohon unggah setidaknya 1 file PDF hasil Psikotes.");
+    if (candidatePairs.length > 5) return alert("Maksimal unggah adalah 5 kandidat per sesi.");
     if (!jobDesc && !jdFile) return alert("Mohon masukkan Job Description.");
 
-    const psikotesBase64 = await fileToBase64(psikotesFile);
-    const cvBase64 = cvFile ? await fileToBase64(cvFile) : null;
+    try {
+      const candidatesPayload = await Promise.all(
+        candidatePairs.map(async (pair) => {
+          const psikotesBase64 = await fileToBase64(pair.psikotesFile);
+          const cvBase64 = pair.cvFile ? await fileToBase64(pair.cvFile) : null;
+          return {
+            name: pair.name,
+            psikotesBase64,
+            cvBase64
+          };
+        })
+      );
 
-    const jdPayload = jdFile ? jdFile : jobDesc;
+      const jdPayload = jdFile ? jdFile : jobDesc;
 
-    // Get active profile aspects if available
-    const activeProfile = profiles.find(p => p.id === activeProfileId);
-    const profileAspects = activeProfile?.papiAspects || (generatedPapi?.papi_aspects?.map(a => ({ code: a.code, name: a.name, ideal_range: a.ideal_range, reason: a.reason })) || undefined);
+      // Get active profile aspects if available
+      const activeProfile = profiles.find(p => p.id === activeProfileId);
+      const profileAspects = activeProfile?.papiAspects || (generatedPapi?.papi_aspects?.map(a => ({ code: a.code, name: a.name, ideal_range: a.ideal_range, reason: a.reason })) || undefined);
 
-    onAnalyze(psikotesBase64, cvBase64, jdPayload, papiStandard, "", selectedModel, profileAspects);
+      onAnalyze(candidatesPayload, jdPayload, papiStandard, "", selectedModel, profileAspects);
+    } catch (err) {
+      alert("Gagal memproses file. Pastikan semua file terbaca dengan baik.");
+    }
   };
 
   const handleSaveProfile = () => {
@@ -196,30 +278,34 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
           {/* Psikotes Upload */}
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm font-bold text-slate-700 uppercase tracking-wider">
-              <FileUp className="w-4 h-4 text-red-600" /> 1. Hasil Tes (PDF)
+              <FileUp className="w-4 h-4 text-red-600" /> 1. Hasil Tes (PDF, Maks 5)
             </label>
             <div className={cn(
               "relative border-2 border-dashed rounded-2xl p-6 transition-all group",
-              psikotesFile ? "border-emerald-500 bg-emerald-50" : "border-slate-200 hover:border-red-400 hover:bg-slate-50"
+              psikotesFiles.length > 0 ? "border-emerald-500 bg-emerald-50" : "border-slate-200 hover:border-red-400 hover:bg-slate-50"
             )}>
               <input 
                 type="file" 
+                multiple
                 accept="application/pdf" 
-                onChange={(e) => setPsikotesFile(e.target.files?.[0] || null)}
+                onChange={(e) => handlePsikotesChange(e.target.files)}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
               />
               <div className="text-center">
-                {psikotesFile ? (
+                {psikotesFiles.length > 0 ? (
                   <div className="flex flex-col items-center gap-2">
                     <CheckCircle2 className="w-8 h-8 text-emerald-500" />
-                    <p className="text-sm font-bold text-emerald-700 truncate max-w-full">{psikotesFile.name}</p>
-                    <button onClick={(e) => { e.stopPropagation(); setPsikotesFile(null); }} className="text-[10px] uppercase font-black text-emerald-600 hover:text-red-500">Ganti File</button>
+                    <p className="text-sm font-bold text-emerald-700">{psikotesFiles.length} File Psikotes Terpilih</p>
+                    <div className="text-[10px] text-emerald-600 font-medium max-w-full truncate">
+                      {psikotesFiles.map(f => f.name).join(', ')}
+                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); setPsikotesFiles([]); setCandidatePairs([]); }} className="text-[10px] uppercase font-black text-emerald-600 hover:text-red-500">Hapus Semua</button>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2">
                     <Upload className="w-8 h-8 text-slate-300 group-hover:text-red-400 transition-colors" />
                     <p className="text-sm font-bold text-slate-500">Klik atau Drag PDF WPT & PAPI</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Maksimal 10MB</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Maksimal 5 file PDF</p>
                   </div>
                 )}
               </div>
@@ -229,35 +315,98 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
           {/* CV Upload */}
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm font-bold text-slate-700 uppercase tracking-wider">
-              <User className="w-4 h-4 text-blue-600" /> 2. CV / Resume (PDF)
+              <User className="w-4 h-4 text-blue-600" /> 2. CV / Resume (PDF, Maks 5)
             </label>
             <div className={cn(
               "relative border-2 border-dashed rounded-2xl p-6 transition-all group",
-              cvFile ? "border-blue-500 bg-blue-50" : "border-slate-200 hover:border-blue-400 hover:bg-slate-50"
+              cvFiles.length > 0 ? "border-blue-500 bg-blue-50" : "border-slate-200 hover:border-blue-400 hover:bg-slate-50"
             )}>
               <input 
                 type="file" 
+                multiple
                 accept="application/pdf" 
-                onChange={(e) => setCvFile(e.target.files?.[0] || null)}
+                onChange={(e) => handleCvChange(e.target.files)}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
               />
               <div className="text-center">
-                {cvFile ? (
+                {cvFiles.length > 0 ? (
                   <div className="flex flex-col items-center gap-2">
                     <CheckCircle2 className="w-8 h-8 text-blue-500" />
-                    <p className="text-sm font-bold text-blue-700 truncate max-w-full">{cvFile.name}</p>
-                    <button onClick={(e) => { e.stopPropagation(); setCvFile(null); }} className="text-[10px] uppercase font-black text-blue-600 hover:text-red-500">Ganti File</button>
+                    <p className="text-sm font-bold text-blue-700">{cvFiles.length} File CV Terpilih</p>
+                    <div className="text-[10px] text-blue-600 font-medium max-w-full truncate">
+                      {cvFiles.map(f => f.name).join(', ')}
+                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); setCvFiles([]); updateCandidatePairs(psikotesFiles, []); }} className="text-[10px] uppercase font-black text-blue-600 hover:text-red-500">Hapus Semua</button>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2">
                     <Upload className="w-8 h-8 text-slate-300 group-hover:text-blue-400 transition-colors" />
                     <p className="text-sm font-bold text-slate-500">Klik atau Drag CV Pelamar</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Opsional tapi disarankan</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Opsional, maksimal 5 file PDF</p>
                   </div>
                 )}
               </div>
             </div>
           </div>
+
+          {/* Candidate Pairing Panel */}
+          {candidatePairs.length > 0 && (
+            <div className="col-span-1 md:col-span-2 p-6 bg-slate-50 rounded-3xl border border-slate-200/80 space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+                <User className="w-4 h-4 text-red-600" />
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Pasangan Analisis Kandidat</h3>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                Tinjau atau ubah nama kandidat dan pasangkan file psikotes dengan CV yang sesuai. AI akan menganalisis masing-masing baris secara berurutan.
+              </p>
+              <div className="space-y-3">
+                {candidatePairs.map((pair, index) => (
+                  <div key={pair.id} className="flex flex-col md:flex-row items-stretch md:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                    <div className="flex-[1.5] space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase">Nama Kandidat {index + 1}</label>
+                      <input 
+                        type="text" 
+                        value={pair.name}
+                        onChange={(e) => {
+                          const updated = candidatePairs.map(p => p.id === pair.id ? { ...p, name: e.target.value } : p);
+                          setCandidatePairs(updated);
+                        }}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition-all"
+                        placeholder="Masukkan nama kandidat..."
+                      />
+                    </div>
+                    
+                    <div className="flex-[2] space-y-1 min-w-0">
+                      <label className="text-[10px] font-black text-slate-400 uppercase">File Psikotes</label>
+                      <div className="text-xs font-bold text-slate-800 truncate bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex items-center gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span className="truncate">{pair.psikotesFile.name}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex-[2] space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase">Pilih CV Pendamping</label>
+                      <select
+                        value={pair.cvFile ? pair.cvFile.name : ""}
+                        onChange={(e) => {
+                          const selectedCv = cvFiles.find(cv => cv.name === e.target.value) || null;
+                          const updated = candidatePairs.map(p => p.id === pair.id ? { ...p, cvFile: selectedCv } : p);
+                          setCandidatePairs(updated);
+                        }}
+                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-bold focus:ring-4 focus:ring-red-500/10 outline-none bg-white cursor-pointer"
+                      >
+                        <option value="">-- Tanpa CV (Hanya Psikotes) --</option>
+                        {cvFiles.map(cv => (
+                          <option key={cv.name} value={cv.name}>{cv.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
 
           {/* Job Description */}
           <div className="col-span-1 md:col-span-2 space-y-4">

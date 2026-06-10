@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { PsychogramData } from '../types';
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 import { FileDown, ArrowLeft, CheckCircle2, AlertCircle, HelpCircle, AlertTriangle, User, Briefcase, Calendar, Brain, FileText, Target, Award, Globe, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -81,7 +81,7 @@ const t = {
     cvSummary: 'Qualification Summary',
     cvSummaryNA: 'Summary not available.',
     cvMatch: 'CV Match',
-    pros: 'Strengths',
+    pros: 'Key Strengths',
     cons: 'Competency Gaps',
     papiAvgMatch: 'Average PAPI Match',
     papiCharMatch: 'Character Fit',
@@ -129,32 +129,81 @@ function getScoreStatusIcon(score: number) {
   return <AlertCircle className="w-6 h-6" />;
 }
 
+interface RadarChartWrapperProps {
+  radarData: any[];
+  papiLength: number;
+  papiChartLabel: string;
+}
+
+const RadarChartWrapper: React.FC<RadarChartWrapperProps> = ({ radarData, papiLength, papiChartLabel }) => {
+  const [chartSize, setChartSize] = useState({ width: 300, height: 260 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          setChartSize({
+            width: Math.max(200, width - 32),
+            height: Math.max(150, height - 48)
+          });
+        }
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={containerRef} className="h-[300px] bg-slate-50 rounded-2xl p-4 border border-slate-100 font-bold relative flex flex-col items-center justify-center w-full">
+      <RadarChart cx="50%" cy="50%" outerRadius="80%" width={chartSize.width} height={chartSize.height} data={radarData}>
+        <PolarGrid stroke="#cbd5e1" />
+        <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 12, fontStyle: 'normal', fontWeight: 700 }} />
+        <PolarRadiusAxis angle={30} domain={[0, 9]} tick={false} axisLine={false} />
+        <Radar
+          name="Kandidat"
+          dataKey="A"
+          stroke="#dc2626"
+          fill="#dc2626"
+          fillOpacity={0.5}
+        />
+      </RadarChart>
+      <p className="text-[10px] text-center text-slate-400 mt-2 font-medium italic">{papiChartLabel}</p>
+    </div>
+  );
+};
+
 interface ReportViewProps {
-  data: PsychogramData;
+  data: PsychogramData[];
   onBack: () => void;
-  onUpdate?: (data: PsychogramData) => void;
+  onUpdate?: (data: PsychogramData[]) => void;
 }
 
 export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }) => {
   const reportRef = useRef<HTMLDivElement>(null);
   const [lang, setLang] = useState<Lang>('id');
   const [isTranslating, setIsTranslating] = useState(false);
+  const [selectedCandidateIndex, setSelectedCandidateIndex] = useState<number | null>(data.length === 1 ? 0 : null);
   const L = t[lang];
 
-  if (!data) return null;
+  if (!data || data.length === 0) return null;
 
-  const displayData = lang === 'en' && data.translatedData?.en
-    ? { ...data, ...data.translatedData.en }
-    : data;
-
-  const handleToggleLang = async () => {
+  // Handler translasi untuk kandidat tertentu
+  const handleToggleLangForIndex = async (index: number) => {
+    const candidateData = data[index];
     if (lang === 'id') {
-      if (!data.translatedData?.en) {
+      if (!candidateData.translatedData?.en) {
         setIsTranslating(true);
         try {
-          const translatedEn = await translateWithDeepSeek(data, 'English');
-          const newData = { ...data, translatedData: { ...data.translatedData, en: translatedEn } };
-          if (onUpdate) onUpdate(newData);
+          const translatedEn = await translateWithDeepSeek(candidateData, 'English');
+          const updatedCandidate = { 
+            ...candidateData, 
+            translatedData: { ...candidateData.translatedData, en: translatedEn } 
+          };
+          const newDataArray = data.map((d, i) => i === index ? updatedCandidate : d);
+          if (onUpdate) onUpdate(newDataArray);
           setLang('en');
         } catch (err) {
           alert("Gagal menerjemahkan laporan. Silakan coba lagi.");
@@ -169,80 +218,59 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
     }
   };
 
-  const radarData = (data.papi || []).map(p => ({
-    subject: p.code || '?',
-    A: parseInt(p.score) || 0,
-    fullMark: 9,
-  }));
-
-  // ============================================================
-  // CALCULATED Total Job Fit = CV (34%) + Kognitif (33%) + PAPI (33%)
-  // ============================================================
-  const cvMatchScore = displayData.cv_evaluation?.match_percentage || 0;
-  const cognitiveMatchScore = displayData.cognitive?.match_percentage || 0;
-  const papiAvgMatch = displayData.papi?.length
-    ? Math.round(displayData.papi.reduce((acc, curr) => acc + (curr.match_percentage || 0), 0) / displayData.papi.length)
-    : 0;
-
-  const calculatedTotalJobFit = Math.round(
-    (cvMatchScore * 0.34) + (cognitiveMatchScore * 0.33) + (papiAvgMatch * 0.33)
-  );
+  const getCandidateStats = (cand: PsychogramData) => {
+    const cData = lang === 'en' && cand.translatedData?.en ? cand.translatedData.en : cand;
+    const cv = cData.cv_evaluation?.match_percentage || 0;
+    const cog = cData.cognitive?.match_percentage || 0;
+    const papi = cData.papi?.length
+      ? Math.round(cData.papi.reduce((acc, curr) => acc + (curr.match_percentage || 0), 0) / cData.papi.length)
+      : 0;
+    const total = Math.round((cv * 0.34) + (cog * 0.33) + (papi * 0.33));
+    return { cv, cog, papi, total };
+  };
 
   const downloadPdf = () => {
     window.print();
   };
 
-  const recommendationStatus = getRecommendationStatus(calculatedTotalJobFit, lang);
-  const statusColor = getScoreStatusColor(calculatedTotalJobFit);
-  const statusIcon = getScoreStatusIcon(calculatedTotalJobFit);
-
   const dateStr = lang === 'id'
     ? new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
     : new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
 
-  return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12">
-      <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 sticky top-4 z-10 no-print">
-        <button 
-          onClick={onBack}
-          className="text-slate-500 hover:text-slate-800 text-sm font-semibold flex items-center gap-2 transition"
-        >
-          <ArrowLeft className="w-4 h-4" /> {L.back}
-        </button>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleToggleLang}
-            disabled={isTranslating}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-bold transition",
-              isTranslating 
-                ? "border-slate-100 bg-slate-100 text-slate-400 cursor-wait" 
-                : "border-slate-200 hover:border-slate-400 text-slate-600 bg-slate-50 hover:bg-white"
-            )}
-          >
-            {isTranslating ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Globe className="w-4 h-4" />
-            )}
-            {isTranslating ? (lang === 'id' ? 'Translating...' : 'Menerjemahkan...') : (lang === 'id' ? '🇮🇩 ID' : '🇬🇧 EN')}
-          </button>
-          <button 
-            onClick={downloadPdf}
-            className="bg-slate-900 hover:bg-black text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-md flex items-center gap-2 transition"
-          >
-            <FileDown className="w-4 h-4" /> {L.print}
-          </button>
-        </div>
-      </div>
+  const renderSingleReport = (cand: PsychogramData, isBatchPrint: boolean = false) => {
+    const displayData = lang === 'en' && cand.translatedData?.en
+      ? { ...cand, ...cand.translatedData.en }
+      : cand;
 
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        ref={reportRef}
-        className="bg-white p-12 shadow-2xl mx-auto w-[210mm] min-h-[297mm] text-slate-800 font-sans relative"
+    const radarData = (cand.papi || []).map(p => {
+      let scoreVal = 0;
+      if (typeof p.score === 'number') {
+        scoreVal = p.score;
+      } else if (typeof p.score === 'string') {
+        const match = p.score.match(/\d+/);
+        scoreVal = match ? parseInt(match[0], 10) : 0;
+      }
+      return {
+        subject: p.code || '?',
+        A: scoreVal,
+        fullMark: 9,
+      };
+    });
+
+    const { cv: cvMatchScore, cog: cognitiveMatchScore, papi: papiAvgMatch, total: calculatedTotalJobFit } = getCandidateStats(cand);
+
+    const recommendationStatus = getRecommendationStatus(calculatedTotalJobFit, lang);
+    const statusColor = getScoreStatusColor(calculatedTotalJobFit);
+    const statusIcon = getScoreStatusIcon(calculatedTotalJobFit);
+
+    return (
+      <div 
+        key={cand.identity?.name || Math.random().toString()}
+        className={cn(
+          "bg-white p-12 text-slate-800 font-sans relative text-left",
+          isBatchPrint ? "w-full min-h-[297mm] page-break-after border-b-2 border-dashed border-slate-300 pb-16" : "shadow-2xl mx-auto w-[210mm] min-h-[297mm]"
+        )}
       >
-        {/* Repeating Print Header - appears on every printed page */}
         <div className="print-header hidden">
           <span style={{ fontSize: '8px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#0f172a' }}>
             {L.printHeader}
@@ -252,20 +280,18 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
           </span>
         </div>
 
-        {/* Repeating Print Footer - appears on every printed page */}
         <div className="print-footer hidden">
           <span style={{ fontSize: '7px', fontWeight: 600, color: '#94a3b8', letterSpacing: '0.15em', textTransform: 'uppercase' }}>
             {L.printFooterPrefix} {dateStr}
           </span>
         </div>
-        {/* Header */}
+
         <div className="text-center border-b-4 border-red-600 pb-6 mb-8">
           <h1 className="text-3xl font-black uppercase tracking-tight mb-1 text-slate-900">{L.reportTitle}</h1>
           <h2 className="text-lg font-bold text-red-600 uppercase tracking-widest">{L.reportSubtitle}</h2>
         </div>
 
-        {/* Identity */}
-        <section className="mb-8">
+        <section className="mb-8 font-sans">
           <div className="flex items-center gap-2 mb-4 bg-slate-100 p-2 rounded-r-lg border-l-4 border-red-600">
             <User className="w-4 h-4 text-red-600" />
             <h3 className="text-sm font-bold uppercase tracking-wider">{L.sectionIdentity}</h3>
@@ -286,8 +312,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
           </div>
         </section>
 
-        {/* Cognitive */}
-        <section className="mb-8">
+        <section className="mb-8 font-sans">
           <div className="flex items-center gap-2 mb-4 bg-slate-100 p-2 rounded-r-lg border-l-4 border-red-600">
             <Brain className="w-4 h-4 text-red-600" />
             <h3 className="text-sm font-bold uppercase tracking-wider">{L.sectionCognitive}</h3>
@@ -307,7 +332,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
             </div>
             <div className="bg-blue-600 p-3 rounded-xl shadow-lg">
               <p className="text-[10px] text-blue-100 uppercase font-bold mb-1">{L.matchRate}</p>
-              <p className="text-xl font-black text-white">{displayData.cognitive?.match_percentage || 0}%</p>
+              <p className="text-xl font-black text-white">{cognitiveMatchScore}%</p>
             </div>
           </div>
           <p className="text-sm text-slate-700 leading-relaxed text-justify ml-4 italic">
@@ -315,8 +340,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
           </p>
         </section>
 
-        {/* CV Evaluation */}
-        <section className="mb-8 page-break-before">
+        <section className="mb-8 page-break-before font-sans">
           <div className="flex items-center gap-2 mb-4 bg-slate-100 p-2 rounded-r-lg border-l-4 border-blue-600">
             <FileText className="w-4 h-4 text-blue-600" />
             <h3 className="text-sm font-bold uppercase tracking-wider text-blue-900">{L.sectionCV}</h3>
@@ -329,7 +353,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
               </div>
               <div className="ml-8 text-right">
                 <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">{L.cvMatch}</div>
-                <div className="text-3xl font-black text-blue-600">{displayData.cv_evaluation?.match_percentage || 0}%</div>
+                <div className="text-3xl font-black text-blue-600">{cvMatchScore}%</div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-8">
@@ -363,37 +387,25 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
           </div>
         </section>
 
-        {/* PAPI Radar */}
-        <section className="mb-8 page-break-before">
+        <section className="mb-8 page-break-before font-sans">
           <div className="flex items-center gap-2 mb-4 bg-slate-100 p-2 rounded-r-lg border-l-4 border-red-600">
             <Target className="w-4 h-4 text-red-600" />
             <h3 className="text-sm font-bold uppercase tracking-wider">{L.sectionPAPI}</h3>
           </div>
           
           <div className="grid grid-cols-2 gap-8 ml-4 items-center">
-            <div className="h-[300px] bg-slate-50 rounded-2xl p-4 border border-slate-100">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
-                  <PolarGrid stroke="#cbd5e1" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 12, fontWeight: 700 }} />
-                  <Radar
-                    name="Kandidat"
-                    dataKey="A"
-                    stroke="#dc2626"
-                    fill="#dc2626"
-                    fillOpacity={0.5}
-                  />
-                </RadarChart>
-              </ResponsiveContainer>
-              <p className="text-[10px] text-center text-slate-400 mt-2 font-medium italic">{L.papiChartLabel(displayData.papi?.length || 0)}</p>
-            </div>
+            <RadarChartWrapper 
+              radarData={radarData}
+              papiLength={displayData.papi?.length || 0}
+              papiChartLabel={L.papiChartLabel(displayData.papi?.length || 0)}
+            />
             
-            <div className="space-y-4">
+            <div className="space-y-4 font-sans">
               <div className="bg-red-600 p-4 rounded-2xl shadow-lg text-white">
                 <p className="text-xs font-bold uppercase text-white/80 mb-1">{L.papiAvgMatch}</p>
                 <div className="flex items-baseline gap-2">
                   <span className="text-4xl font-black">
-                    {displayData.papi?.length ? Math.round(displayData.papi.reduce((acc, curr) => acc + (curr.match_percentage || 0), 0) / displayData.papi.length) : 0}%
+                    {papiAvgMatch}%
                   </span>
                   <span className="text-sm font-medium text-white/80">{L.papiCharMatch}</span>
                 </div>
@@ -405,7 +417,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
           </div>
 
           <div className="mt-6 ml-4 overflow-hidden rounded-xl border border-slate-200">
-            <table className="w-full text-[10px] border-collapse">
+            <table className="w-full text-[10px] border-collapse font-sans">
               <thead>
                 <tr className="bg-slate-100 text-slate-600 uppercase font-bold">
                   <th className="p-2 text-left border-b border-slate-200">{L.thCrucial}</th>
@@ -443,8 +455,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
           </div>
         </section>
 
-        {/* Conclusion */}
-        <section className="mt-12 page-break-before">
+        <section className="mt-12 page-break-before font-sans">
           <div className="flex items-center gap-2 mb-6 bg-slate-900 p-3 rounded-lg text-white">
             <Award className="w-5 h-5 text-red-500" />
             <h3 className="text-base font-bold uppercase tracking-widest">{L.sectionConclusion}</h3>
@@ -471,7 +482,6 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
             </div>
           </div>
 
-          {/* Job Fit Breakdown */}
           <div className="grid grid-cols-3 gap-4 mb-8">
             <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
               <div className="flex justify-between items-center mb-2">
@@ -547,15 +557,152 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
           </div>
         </section>
 
-
-
-        {/* Footer */}
         <div className="mt-16 pt-8 border-t border-slate-100 text-center">
           <p className="text-[10px] text-slate-400 font-mono tracking-widest uppercase">
             {L.confidential}
           </p>
         </div>
-      </motion.div>
+      </div>
+    );
+  };
+
+  const renderComparisonDashboard = () => {
+    return (
+      <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-xl space-y-8 no-print font-sans text-left">
+        <div className="flex items-center gap-3 border-b border-slate-100 pb-6">
+          <div className="p-3 bg-red-600 rounded-2xl shadow-lg shadow-red-200">
+            <Award className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Dashboard Perbandingan Kandidat</h2>
+            <p className="text-sm text-slate-500 font-medium">Evaluasi dan bandingkan kecocokan posisi ({data.length} kandidat)</p>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto rounded-2xl border border-slate-200">
+          <table className="w-full text-xs text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 text-slate-500 uppercase font-black tracking-wider text-[10px] border-b border-slate-200">
+                <th className="p-4">Nama Kandidat</th>
+                <th className="p-4">Posisi</th>
+                <th className="p-4 text-center">Kognitif (WPT)</th>
+                <th className="p-4 text-center">CV Match</th>
+                <th className="p-4 text-center">PAPI Average</th>
+                <th className="p-4 text-center">Total Job Fit</th>
+                <th className="p-4 text-center">Rekomendasi</th>
+                <th className="p-4 text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-medium">
+              {data.map((cand, idx) => {
+                const { cv, cog, papi, total } = getCandidateStats(cand);
+                const isSuitable = total >= 60;
+                return (
+                  <tr key={cand.identity?.name || idx} className="hover:bg-slate-50/50 transition">
+                    <td className="p-4 font-bold text-slate-900">{cand.identity?.name || '-'}</td>
+                    <td className="p-4 text-slate-600">{cand.identity?.position || '-'}</td>
+                    <td className="p-4 text-center font-bold text-purple-700">{cog}%</td>
+                    <td className="p-4 text-center font-bold text-blue-700">{cv}%</td>
+                    <td className="p-4 text-center font-bold text-emerald-700">{papi}%</td>
+                    <td className="p-4 text-center">
+                      <div className="inline-flex items-center justify-center px-3 py-1 bg-slate-900 text-white rounded-full font-black">
+                        {total}%
+                      </div>
+                    </td>
+                    <td className="p-4 text-center">
+                      <span className={cn(
+                        "px-3 py-1 rounded-full font-black text-[10px]",
+                        isSuitable ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                      )}>
+                        {isSuitable ? L.statusSuitable : L.statusNotSuitable}
+                      </span>
+                    </td>
+                    <td className="p-4 text-center">
+                      <button 
+                        onClick={() => setSelectedCandidateIndex(idx)}
+                        className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-bold transition text-[11px] cursor-pointer"
+                      >
+                        Lihat Detail
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-6 max-w-5xl mx-auto pb-12">
+      <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 sticky top-4 z-10 no-print">
+        <button 
+          onClick={() => {
+            if (data.length > 1 && selectedCandidateIndex !== null) {
+              setSelectedCandidateIndex(null);
+            } else {
+              onBack();
+            }
+          }}
+          className="text-slate-500 hover:text-slate-800 text-sm font-semibold flex items-center gap-2 transition cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" /> {selectedCandidateIndex !== null && data.length > 1 ? "Kembali ke Perbandingan" : L.back}
+        </button>
+        
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              const idx = selectedCandidateIndex !== null ? selectedCandidateIndex : 0;
+              handleToggleLangForIndex(idx);
+            }}
+            disabled={isTranslating}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-bold transition cursor-pointer",
+              isTranslating 
+                ? "border-slate-100 bg-slate-100 text-slate-400 cursor-wait" 
+                : "border-slate-200 hover:border-slate-400 text-slate-600 bg-slate-50 hover:bg-white"
+            )}
+          >
+            {isTranslating ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Globe className="w-4 h-4" />
+            )}
+            {isTranslating ? (lang === 'id' ? 'Translating...' : 'Menerjemahkan...') : (lang === 'id' ? '🇮🇩 ID' : '🇬🇧 EN')}
+          </button>
+          
+          <button 
+            onClick={downloadPdf}
+            className="bg-slate-900 hover:bg-black text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-md flex items-center gap-2 transition cursor-pointer"
+          >
+            <FileDown className="w-4 h-4" /> {selectedCandidateIndex === null ? "Cetak Semua Laporan" : L.print}
+          </button>
+        </div>
+      </div>
+
+      <div className="no-print">
+        {selectedCandidateIndex === null ? (
+          renderComparisonDashboard()
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            {renderSingleReport(data[selectedCandidateIndex])}
+          </motion.div>
+        )}
+      </div>
+
+      <div className="hidden print:block space-y-0 bg-white">
+        {selectedCandidateIndex !== null ? (
+          renderSingleReport(data[selectedCandidateIndex], true)
+        ) : (
+          data.map((cand) => renderSingleReport(cand, true))
+        )}
+      </div>
     </div>
   );
 };

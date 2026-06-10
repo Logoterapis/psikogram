@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { PsychogramData, CostDetail, JobProfileAspect } from "../types";
+import { buildPapiStandardSystemPrompt, buildPapiInterpretationGuide } from "./papi-constants";
 
 // ============================================================
 // PRICING CONSTANTS (Gemini 2.5 Flash — April 2026)
@@ -154,7 +155,7 @@ export async function generatePapiStandard(
 
   const ai = new GoogleGenAI({ apiKey });
 
-  const systemPrompt = `Anda adalah Ahli Job Profiling HR Sika Indonesia. Analisis Job Description yang diberikan dan tentukan TEPAT ${aspectCount} Aspek PAPI Kostick (dari 20 aspek: N,G,A,L,P,I,T,V,X,S,B,O,R,D,C,Z,E,K,F,W) yang PALING DIBUTUHKAN untuk kesuksesan di posisi tersebut.`;
+  const systemPrompt = buildPapiStandardSystemPrompt(aspectCount);
 
   const schema = {
     type: Type.OBJECT,
@@ -241,11 +242,13 @@ Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT ${count}.`;
          Array 'papi' dalam JSON HARUS berisi tepat 10 objek.`;
     }
 
+    const papiKnowledgeBase = buildPapiInterpretationGuide();
+
     const narrativeTemplate = `
 TEMPLATE NARASI (WAJIB DIIKUTI untuk setiap aspek PAPI):
 Gunakan pola narasi berikut agar KONSISTEN di setiap laporan:
-- 'interpretation': "Kandidat memperoleh skor [skor] pada aspek [nama aspek] ([kode]). [Penjelasan mendalam 2-3 kalimat tentang apa yang ditunjukkan skor tersebut terhadap perilaku kerja kandidat]. Dalam konteks posisi yang dilamar, [analisis implikasi skor terhadap tuntutan jabatan]."
-- 'relevance_reason': "Aspek [nama aspek] menjadi krusial untuk posisi ini karena [alasan spesifik terkait job description]. [Penjelasan hubungan aspek dengan keberhasilan di jabatan tersebut]."
+- 'interpretation': "Kandidat memperoleh skor [skor] pada aspek [nama aspek] ([kode]). [Penjelasan mendalam 2-3 kalimat tentang apa yang ditunjukkan skor tersebut terhadap perilaku kerja kandidat, dengan mempertimbangkan DIMENSI yang relevan dan KOMBINASI POLA antar aspek]. Dalam konteks posisi yang dilamar, [analisis implikasi skor terhadap tuntutan jabatan, termasuk potensi RISIKO jika skor terlalu tinggi/rendah]."
+- 'relevance_reason': "Aspek [nama aspek] menjadi krusial untuk posisi ini karena [alasan spesifik terkait job description]. [Penjelasan hubungan aspek dengan keberhasilan di jabatan tersebut, merujuk pada standar ideal untuk jenis jabatan ini]."
 - 'fit': Tentukan berdasarkan jarak skor dengan ideal: gap 0-1 = "Sangat Sesuai", gap 2-3 = "Sesuai", gap 4-5 = "Cukup Sesuai", gap >5 = "Kurang Sesuai".
 - 'match_percentage': Hitung secara konsisten: jika skor kandidat berada dalam rentang ideal = 90-100%, gap 1-2 = 70-89%, gap 3-4 = 50-69%, gap >4 = 20-49%.
 
@@ -263,7 +266,7 @@ KATEGORI 2 (Non-Staff/Operator/Helper/Driver):
 - IQ 85-99: Match Rate 55-89% (Interpretasi: Sesuai. Masih sangat mampu melakukan pekerjaan operasional yang rutin dan diawasi.)
 - IQ < 85: Match Rate 10-55% (Interpretasi: Kurang disarankan. Ada potensi kesulitan memahami instruksi yang sedikit berubah atau mesin baru.)`;
 
-    const systemPrompt = `Anda adalah Ahli Ekstraksi Dokumen Vision AI dan Psikolog Senior HR Sika Indonesia.
+    const systemPrompt = `Anda adalah Ahli Ekstraksi Dokumen Vision AI dan Psikolog Industri & Organisasi Senior HR Sika Indonesia.
 TUGAS UTAMA ANDA ADALAH MELAKUKAN OCR VISUAL PADA DOKUMEN PDF YANG DIBERIKAN DAN MEMBERIKAN ANALISIS JOB FIT.
 
 PANDUAN EKSTRAKSI DOKUMEN (HASIL PSIKOTES):
@@ -271,12 +274,18 @@ PANDUAN EKSTRAKSI DOKUMEN (HASIL PSIKOTES):
 2. CARI TEKS "Estimasi IQ" -> Ambil angka di sebelahnya (misal: 110).
 3. CARI TABEL "PAPI KOSTICK" -> Ekstrak data skor untuk 20 aspek sebagai referensi internal Anda.
 
+=== BASIS PENGETAHUAN PAPI KOSTICK PROFESIONAL ===
+${papiKnowledgeBase}
+=== AKHIR BASIS PENGETAHUAN ===
+
 PANDUAN OUTPUT JSON (SANGAT PENTING):
 1. Array 'papi' dalam JSON output HARUS BERISI TEPAT ${count} OBJEK.
 2. ${papiInstruction}
-3. Untuk setiap aspek dalam array 'papi', berikan interpretasi mendalam (minimal 2 kalimat) dan alasan relevansinya terhadap Job Desc.
+3. Untuk setiap aspek dalam array 'papi', berikan interpretasi mendalam yang MENGACU PADA DIMENSI PAPI (Work Direction, Leadership, Activity, Social Nature, Work Style, Temperament, Followership) dan KOMBINASI POLA antar aspek.
 4. Hitung 'match_percentage' untuk setiap aspek berdasarkan seberapa dekat skor kandidat dengan skor ideal untuk posisi tersebut.
 5. 'total_job_fit_percentage' adalah rata-rata tertimbang dari Evaluasi CV (34%), Kognitif (33%), dan PAPI (33%).
+6. WAJIB identifikasi RISIKO skor TINGGI (bukan hanya skor rendah) berdasarkan tabel risiko di atas.
+7. Dalam analysis.strengths dan analysis.risks, gunakan pendekatan DIMENSI — kelompokkan temuan berdasarkan dimensi PAPI.
 ${idealRangeAnchor}
 ${narrativeTemplate}
 
@@ -284,6 +293,7 @@ KUALITAS ANALISIS:
 - Jangan memberikan nilai null atau "-" jika angka terlihat di dokumen.
 - NARASI & GAYA BAHASA: Sajikan hasil analisis (terutama interpretasi, alasan relevansi, ringkasan CV, kekuatan, risiko, dan catatan akhir) dengan gaya bahasa yang NARATIF, mengalir, deskriptif, dan komprehensif. Gunakan bahasa HR korporat yang sistematis dan praktis agar mudah dipahami oleh manajemen. Jangan gunakan kalimat yang terlalu kaku atau terlalu singkat (robotik). Susun layaknya sebuah laporan dari Assessor/Psikolog Senior yang menceritakan profil kandidat.
 - Jika CV tersedia, ceritakan hubungan temuan psikotes dengan pengalaman kerja nyata kandidat secara naratif.
+- INGAT: Skor tinggi BUKAN selalu bagus. Baca skor berdasarkan konteks jabatan. Jangan memberi label negatif pada kandidat.
 
 OUTPUT HARUS JSON LENGKAP SESUAI SCHEMA DENGAN TEPAT ${count} ASPEK PAPI.`;
 

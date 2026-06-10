@@ -87,3 +87,11 @@ export interface PsychogramData {
     }
   };
 }
+
+export interface CandidatePair {
+  id: string;
+  name: string;
+  psikotesFile: File;
+  cvFile: File | null;
+}
+

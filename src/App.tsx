@@ -12,26 +12,56 @@ import { BrainCircuit, Sparkles, ShieldCheck } from 'lucide-react';
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(false);
-  const [reportData, setReportData] = useState<PsychogramData | null>(null);
+  const [loadingProgress, setLoadingProgress] = useState<{ current: number; total: number; candidateName: string } | null>(null);
+  const [reportData, setReportData] = useState<PsychogramData[] | null>(null);
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
   const { history, saveToHistory, updateHistoryItem, deleteFromHistory, clearHistory } = useHistory();
 
-  const handleAnalyze = async (psikotes: string, cv: string | null, jobDesc: string | { data: string, mimeType: string }, papiStandard: string, apiKey: string, model: string, profileAspects?: JobProfileAspect[]) => {
+  const handleAnalyze = async (
+    candidates: { name: string; psikotesBase64: string; cvBase64: string | null }[],
+    jobDesc: string | { data: string, mimeType: string },
+    papiStandard: string,
+    apiKey: string,
+    model: string,
+    profileAspects?: JobProfileAspect[]
+  ) => {
     setIsLoading(true);
+    const allResults: PsychogramData[] = [];
+    const total = candidates.length;
+
     try {
-      let data: PsychogramData;
-      if (model === 'deepseek') {
-        const extractedData = await extractRawDataFromPdf(psikotes, cv, jobDesc, papiStandard, apiKey, "gemini-2.5-flash");
-        data = await analyzeWithDeepSeek(extractedData, (process.env as any).DEEPSEEK_API_KEY, "deepseek-chat", profileAspects);
-      } else if (model === 'claude') {
-        const extractedData = await extractRawDataFromPdf(psikotes, cv, jobDesc, papiStandard, apiKey, "gemini-2.5-flash");
-        data = await analyzeWithClaude(extractedData, (process.env as any).CLAUDE_API_KEY, "claude-sonnet-4-20250514", profileAspects);
-      } else {
-        data = await analyzePsychogram(psikotes, cv, jobDesc, papiStandard, apiKey, model, profileAspects);
+      for (let i = 0; i < total; i++) {
+        const candidate = candidates[i];
+        setLoadingProgress({ current: i + 1, total, candidateName: candidate.name });
+
+        let data: PsychogramData;
+        if (model === 'deepseek') {
+          const extractedData = await extractRawDataFromPdf(candidate.psikotesBase64, candidate.cvBase64, jobDesc, papiStandard, apiKey, "gemini-2.5-flash");
+          data = await analyzeWithDeepSeek(extractedData, (process.env as any).DEEPSEEK_API_KEY, "deepseek-chat", profileAspects);
+        } else if (model === 'claude') {
+          const extractedData = await extractRawDataFromPdf(candidate.psikotesBase64, candidate.cvBase64, jobDesc, papiStandard, apiKey, "gemini-2.5-flash");
+          data = await analyzeWithClaude(extractedData, (process.env as any).CLAUDE_API_KEY, "claude-sonnet-4-20250514", profileAspects);
+        } else {
+          data = await analyzePsychogram(candidate.psikotesBase64, candidate.cvBase64, jobDesc, papiStandard, apiKey, model, profileAspects);
+        }
+
+        // Pastikan nama kandidat konsisten dengan form pairing
+        if (data.identity) {
+          data.identity.name = candidate.name;
+        } else {
+          data.identity = { name: candidate.name, position: "" };
+        }
+
+        // Simpan hasil secara individual ke history
+        const newId = saveToHistory(data);
+        if (i === total - 1) {
+          setActiveReportId(newId);
+        }
+
+        allResults.push(data);
       }
-      setReportData(data);
-      const newId = saveToHistory(data);
-      setActiveReportId(newId);
+
+      setReportData(allResults);
     } catch (error: any) {
       console.error(error);
       let msg = error.message || "Analisis gagal. Silakan coba lagi atau periksa file Anda.";
@@ -45,6 +75,7 @@ export default function App() {
       alert(msg);
     } finally {
       setIsLoading(false);
+      setLoadingProgress(null);
     }
   };
 
@@ -77,8 +108,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-12">
-        <div className={reportData ? "hidden" : "block"}>
+      <main className="max-w-6xl mx-auto px-6 py-12">        <div className={reportData ? "hidden" : "block"}>
           <motion.div
             key="input"
             initial={{ opacity: 0, scale: 0.95 }}
@@ -96,7 +126,7 @@ export default function App() {
               history={history}
               onView={(item) => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-                setReportData(item.data);
+                setReportData([item.data]);
                 setActiveReportId(item.id);
               }}
               onDelete={deleteFromHistory}
@@ -117,10 +147,10 @@ export default function App() {
               <ReportView 
                 data={reportData} 
                 onBack={() => { setReportData(null); setActiveReportId(null); }}
-                onUpdate={(newData) => {
-                  setReportData(newData);
-                  if (activeReportId) {
-                    updateHistoryItem(activeReportId, newData);
+                onUpdate={(newDataArray) => {
+                  setReportData(newDataArray);
+                  if (activeReportId && newDataArray.length === 1) {
+                    updateHistoryItem(activeReportId, newDataArray[0]);
                   }
                 }}
               />
@@ -174,18 +204,42 @@ export default function App() {
           >
             <BrainCircuit className="w-20 h-20 text-red-500" />
           </motion.div>
-          <h3 className="text-2xl font-black mb-2 tracking-tight">AI Sedang Menganalisis...</h3>
-          <p className="text-slate-400 text-center max-w-md font-medium">
-            Mengekstrak data visual dari PDF, mengevaluasi CV, dan menghitung skor Job Fit kandidat. Mohon tunggu sebentar.
+          
+          <h3 className="text-2xl font-black mb-2 tracking-tight">
+            {loadingProgress 
+              ? `Menganalisis Kandidat (${loadingProgress.current}/${loadingProgress.total})`
+              : "AI Sedang Menganalisis..."}
+          </h3>
+          
+          <p className="text-slate-400 text-center max-w-md font-medium text-sm">
+            {loadingProgress 
+              ? `Sedang menganalisis berkas untuk ${loadingProgress.candidateName}. Mohon tunggu sebentar.`
+              : "Mengekstrak data visual dari PDF, mengevaluasi CV, dan menghitung skor Job Fit kandidat."}
           </p>
-          <div className="mt-8 w-64 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-            <motion.div 
-              initial={{ x: "-100%" }}
-              animate={{ x: "100%" }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-              className="w-full h-full bg-red-500"
-            />
+
+          <div className="mt-8 w-64 h-2 bg-slate-800 rounded-full overflow-hidden relative border border-slate-700/50">
+            {loadingProgress ? (
+              <motion.div 
+                initial={{ width: "0%" }}
+                animate={{ width: `${(loadingProgress.current / loadingProgress.total) * 100}%` }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="h-full bg-gradient-to-r from-red-500 to-amber-500"
+              />
+            ) : (
+              <motion.div 
+                initial={{ x: "-100%" }}
+                animate={{ x: "100%" }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                className="w-full h-full bg-red-500"
+              />
+            )}
           </div>
+          
+          {loadingProgress && (
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mt-2">
+              {Math.round((loadingProgress.current / loadingProgress.total) * 100)}% Selesai
+            </span>
+          )}
         </div>
       )}
     </div>

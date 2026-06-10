@@ -1,4 +1,5 @@
 import { PsychogramData, CostDetail, JobProfileAspect } from "../types";
+import { buildPapiStandardSystemPrompt, buildPapiInterpretationGuide } from "./papi-constants";
 
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 const CLAUDE_MODEL = "claude-sonnet-4-20250514";
@@ -57,11 +58,13 @@ Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT ${count}.`;
        Array 'papi' dalam JSON HARUS berisi tepat 10 objek.`;
   }
 
+  const papiKnowledgeBase = buildPapiInterpretationGuide();
+
   const narrativeTemplate = `
 TEMPLATE NARASI (WAJIB DIIKUTI untuk setiap aspek PAPI):
 Gunakan pola narasi berikut agar KONSISTEN di setiap laporan:
-- 'interpretation': "Kandidat memperoleh skor [skor] pada aspek [nama aspek] ([kode]). [Penjelasan mendalam 2-3 kalimat tentang apa yang ditunjukkan skor tersebut terhadap perilaku kerja kandidat]. Dalam konteks posisi yang dilamar, [analisis implikasi skor terhadap tuntutan jabatan]."
-- 'relevance_reason': "Aspek [nama aspek] menjadi krusial untuk posisi ini karena [alasan spesifik terkait job description]. [Penjelasan hubungan aspek dengan keberhasilan di jabatan tersebut]."
+- 'interpretation': "Kandidat memperoleh skor [skor] pada aspek [nama aspek] ([kode]). [Penjelasan mendalam 2-3 kalimat tentang apa yang ditunjukkan skor tersebut terhadap perilaku kerja kandidat, dengan mempertimbangkan DIMENSI yang relevan dan KOMBINASI POLA antar aspek]. Dalam konteks posisi yang dilamar, [analisis implikasi skor terhadap tuntutan jabatan, termasuk potensi RISIKO jika skor terlalu tinggi/rendah]."
+- 'relevance_reason': "Aspek [nama aspek] menjadi krusial untuk posisi ini karena [alasan spesifik terkait job description]. [Penjelasan hubungan aspek dengan keberhasilan di jabatan tersebut, merujuk pada standar ideal untuk jenis jabatan ini]."
 - 'fit': Tentukan berdasarkan jarak skor dengan ideal: gap 0-1 = "Sangat Sesuai", gap 2-3 = "Sesuai", gap 4-5 = "Cukup Sesuai", gap >5 = "Kurang Sesuai".
 - 'match_percentage': Hitung secara konsisten: jika skor kandidat berada dalam rentang ideal = 90-100%, gap 1-2 = 70-89%, gap 3-4 = 50-69%, gap >4 = 20-49%.
 
@@ -79,11 +82,15 @@ KATEGORI 2 (Non-Staff/Operator/Helper/Driver):
 - IQ 85-99: Match Rate 55-89% (Interpretasi: Sesuai. Masih sangat mampu melakukan pekerjaan operasional yang rutin dan diawasi.)
 - IQ < 85: Match Rate 10-55% (Interpretasi: Kurang disarankan. Ada potensi kesulitan memahami instruksi yang sedikit berubah atau mesin baru.)`;
 
-  const systemPrompt = `Anda adalah Psikolog Senior HR Sika Indonesia yang ahli dalam analisis Job Fit.
+  const systemPrompt = `Anda adalah Psikolog Industri & Organisasi Senior HR Sika Indonesia yang ahli dalam analisis Job Fit.
 Anda akan menerima DATA HASIL EKSTRAKSI dari dokumen psikotes kandidat yang sudah di-OCR oleh Vision AI.
 
 TUGAS ANDA:
 Berdasarkan data mentah yang diberikan, lakukan analisis mendalam dan hasilkan laporan Job Fit yang komprehensif.
+
+=== BASIS PENGETAHUAN PAPI KOSTICK PROFESIONAL ===
+${papiKnowledgeBase}
+=== AKHIR BASIS PENGETAHUAN ===
 
 DATA YANG DIBERIKAN:
 - Identitas kandidat (nama, posisi)
@@ -96,10 +103,12 @@ DATA YANG DIBERIKAN:
 PANDUAN OUTPUT JSON (SANGAT PENTING):
 1. Array 'papi' dalam JSON output HARUS BERISI TEPAT ${count} OBJEK.
 2. ${papiInstruction}
-3. Untuk setiap aspek dalam array 'papi', berikan 'interpretation' mendalam (minimal 2 kalimat) dan 'relevance_reason' terhadap Job Desc.
+3. Untuk setiap aspek dalam array 'papi', berikan interpretasi mendalam yang MENGACU PADA DIMENSI PAPI (Work Direction, Leadership, Activity, Social Nature, Work Style, Temperament, Followership) dan KOMBINASI POLA antar aspek.
 4. Hitung 'match_percentage' untuk setiap aspek berdasarkan seberapa dekat skor kandidat dengan skor ideal untuk posisi tersebut (0-100).
 5. 'total_job_fit_percentage' adalah rata-rata tertimbang dari Evaluasi CV (34%), Kognitif (33%), dan PAPI (33%).
 6. Tentukan 'fit' sebagai: "Sangat Sesuai", "Sesuai", "Cukup Sesuai", atau "Kurang Sesuai".
+7. WAJIB identifikasi RISIKO skor TINGGI (bukan hanya skor rendah) berdasarkan tabel risiko di basis pengetahuan.
+8. Dalam analysis.strengths dan analysis.risks, gunakan pendekatan DIMENSI — kelompokkan temuan berdasarkan dimensi PAPI.
 ${idealRangeAnchor}
 ${narrativeTemplate}
 
@@ -107,6 +116,7 @@ KUALITAS ANALISIS:
 - Jangan memberikan nilai null atau "-" jika data tersedia.
 - NARASI & GAYA BAHASA: Sajikan hasil analisis (terutama interpretasi, alasan relevansi, ringkasan CV, kekuatan, risiko, dan catatan akhir) dengan gaya bahasa yang NARATIF, mengalir, deskriptif, dan komprehensif. Gunakan bahasa HR korporat yang sistematis dan praktis agar mudah dipahami oleh manajemen. Jangan gunakan kalimat yang terlalu kaku atau terlalu singkat (robotik). Susun layaknya sebuah laporan dari Assessor/Psikolog Senior yang menceritakan profil kandidat.
 - Jika CV tersedia, ceritakan hubungan temuan psikotes dengan pengalaman kerja nyata kandidat secara naratif.
+- INGAT: Skor tinggi BUKAN selalu bagus. Baca skor berdasarkan konteks jabatan. Jangan memberi label negatif pada kandidat.
 
 FORMAT OUTPUT HARUS JSON VALID dengan struktur:
 {
@@ -346,17 +356,17 @@ export async function generatePapiStandardWithClaude(
 
   const jobDescText = typeof jobDesc === 'string' ? jobDesc : jobDesc.data;
   
-  const systemPrompt = `Anda adalah Ahli Job Profiling HR Sika Indonesia. Analisis Job Description yang diberikan dan tentukan TEPAT ${aspectCount} Aspek PAPI Kostick (dari 20 aspek: N,G,A,L,P,I,T,V,X,S,B,O,R,D,C,Z,E,K,F,W) yang PALING DIBUTUHKAN untuk kesuksesan di posisi tersebut. 
-  
+  const systemPrompt = buildPapiStandardSystemPrompt(aspectCount) + `
+
 OUTPUT TEPAT HARUS JSON DENGAN FORMAT:
 {
-  "role_summary": "string ringkasan profil jabatan",
+  "role_summary": "string ringkasan profil jabatan (termasuk jenis jabatan, profil ideal, dan red flag)",
   "papi_aspects": [
     {
       "code": "huruf PAPI (misal: L)",
       "name": "nama aspek",
       "ideal_range": "rentang ideal (misal: 7-9)",
-      "reason": "alasan spesifik HR"
+      "reason": "alasan spesifik HR berdasarkan JD"
     }
   ]
 }
