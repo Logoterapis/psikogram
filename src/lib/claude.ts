@@ -213,9 +213,38 @@ Silakan analisis dan berikan output JSON sesuai format yang diminta.`;
       throw new Error("Claude memberikan respons kosong.");
     }
 
-    // Claude may wrap JSON in markdown code blocks, strip them
-    const cleanedContent = content.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```$/i, '').trim();
-    const result = JSON.parse(cleanedContent) as PsychogramData;
+    // Robust JSON extraction from Claude response
+    let result: PsychogramData;
+    try {
+      result = JSON.parse(content) as PsychogramData;
+    } catch {
+      // Strategy 1: Strip markdown code block wrappers
+      const codeBlockMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+      if (codeBlockMatch) {
+        try {
+          result = JSON.parse(codeBlockMatch[1].trim()) as PsychogramData;
+        } catch {
+          result = null as any;
+        }
+      }
+
+      // Strategy 2: Find the first { ... } JSON object in the text
+      if (!result) {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            result = JSON.parse(jsonMatch[0]) as PsychogramData;
+          } catch {
+            result = null as any;
+          }
+        }
+      }
+
+      if (!result) {
+        console.error("Claude raw content that failed JSON parse:", content.substring(0, 500));
+        throw new SyntaxError("Invalid JSON");
+      }
+    }
 
     // Enforce PAPI count
     if (result.papi && Array.isArray(result.papi)) {
@@ -320,12 +349,28 @@ CRITICAL: Return ONLY valid JSON format. Do not include markdown code block synt
     }
 
     const responseData = await response.json() as any;
-    const content = responseData.content?.[0]?.text;
+    const textBlock = responseData.content?.find((block: any) => block.type === 'text');
+    const content = textBlock?.text || responseData.content?.map((b: any) => b.text).filter(Boolean).join('\n');
     
     if (!content) throw new Error("Translation empty response.");
 
-    const cleanedContent = content.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```$/i, '').trim();
-    const result = JSON.parse(cleanedContent);
+    // Robust JSON extraction
+    let result: any;
+    try {
+      result = JSON.parse(content);
+    } catch {
+      const codeBlockMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+      if (codeBlockMatch) {
+        try { result = JSON.parse(codeBlockMatch[1].trim()); } catch { result = null; }
+      }
+      if (!result) {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try { result = JSON.parse(jsonMatch[0]); } catch { result = null; }
+        }
+      }
+      if (!result) throw new SyntaxError("Translation JSON invalid");
+    }
 
     const translatedData = {
       cognitive: { ...data.cognitive, ...result.cognitive },
@@ -410,8 +455,27 @@ CRITICAL: Return ONLY valid JSON. Do not include markdown code blocks.`;
       throw new Error("Claude memberikan respons kosong.");
     }
 
-    const cleanedContent = content.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```$/i, '').trim();
-    const result = JSON.parse(cleanedContent);
+    // Robust JSON extraction from Claude response
+    let result: any;
+    try {
+      result = JSON.parse(content);
+    } catch {
+      const codeBlockMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+      if (codeBlockMatch) {
+        try { result = JSON.parse(codeBlockMatch[1].trim()); } catch { result = null; }
+      }
+      if (!result) {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try { result = JSON.parse(jsonMatch[0]); } catch { result = null; }
+        }
+      }
+      if (!result) {
+        console.error("Claude raw content that failed JSON parse:", content.substring(0, 500));
+        throw new SyntaxError("Invalid JSON");
+      }
+    }
+
     if (result.papi_aspects && Array.isArray(result.papi_aspects)) {
       result.papi_aspects = result.papi_aspects.slice(0, aspectCount);
       result.codes_string = result.papi_aspects.map((item: any) => item.code).join(', ');
