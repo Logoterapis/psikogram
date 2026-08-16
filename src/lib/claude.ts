@@ -167,35 +167,28 @@ export async function analyzeWithClaude(
     ? extractedData.papi_standard.split(',').map(s => s.trim()).filter(Boolean)
     : [];
   
-  // Guarantee AT LEAST 10 PAPI aspects for a complete psychological assessment
-  const targetCount = (profileAspects && profileAspects.length >= 7)
-    ? profileAspects.length
-    : (standardCodes.length >= 7 ? standardCodes.length : 10);
-
-  // Build rich standard description with ideal ranges if profile is available
+  let targetCount = 0; // 0 means dynamic flex mode (5 to 10 aspects based on file/JD)
   let papiInstruction: string;
   let idealRangeAnchor = '';
-  if (profileAspects && profileAspects.length > 0) {
+
+  if (profileAspects && profileAspects.length >= 5) {
+    targetCount = profileAspects.length;
     const aspectDetails = profileAspects.map(a => 
       `- ${a.code} (${a.name}): Skor Ideal = ${a.ideal_range}. Alasan: ${a.reason}`
     ).join('\n');
 
-    if (profileAspects.length >= 7) {
-      papiInstruction = `SAYA TELAH MENETAPKAN STANDAR PROFIL JABATAN INI (${profileAspects.length} ASPEK). ANDA WAJIB MENGEVALUASI DAN HANYA MENGEMBALIKAN TEPAT ${profileAspects.length} ASPEK BERIKUT DALAM ARRAY 'papi': [${extractedData.papi_standard}].
+    papiInstruction = `SAYA TELAH MENETAPKAN STANDAR PROFIL JABATAN INI (${targetCount} ASPEK). ANDA WAJIB MENGEVALUASI DAN HANYA MENGEMBALIKAN TEPAT ${targetCount} ASPEK BERIKUT DALAM ARRAY 'papi': [${extractedData.papi_standard}].
 DILARANG KERAS memasukkan aspek lain di luar daftar tersebut.
-Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT ${profileAspects.length}.`;
-    } else {
-      papiInstruction = `ASPEK UTAMA JABATAN INI ADALAH: [${extractedData.papi_standard}]. SELAIN ASPEK TERSEBUT, ANDA WAJIB MELENGKAPI DENGAN ASPEK PAPI KOSTICK KRUSIAL LAINNYA SEHINGGA ARRAY 'papi' BERISI TEPAT 10 ASPEK (seperti N, G, A, L, P, I, T, V, S, R, D, W) agar gambaran kepribadian kandidat komprehensif.
-Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT 10.`;
-    }
+Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT ${targetCount}.`;
     idealRangeAnchor = `\n\nPROFIL STANDAR JABATAN (WAJIB DIIKUTI):\nBerikut adalah skor ideal yang SUDAH DITETAPKAN untuk aspek terkait. Anda WAJIB menggunakan nilai 'ideal_score' yang sesuai dengan rentang di bawah ini. DILARANG mengarang skor ideal sendiri.\n${aspectDetails}`;
-  } else if (standardCodes.length >= 7) {
+  } else if (standardCodes.length >= 5) {
+    targetCount = standardCodes.length;
     papiInstruction = `ANDA WAJIB MENGEVALUASI DAN HANYA MENGEMBALIKAN TEPAT ${targetCount} ASPEK BERIKUT DALAM ARRAY 'papi': [${extractedData.papi_standard}].
        DILARANG KERAS memasukkan aspek lain di luar daftar tersebut.
        Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT ${targetCount}.`;
   } else {
-    papiInstruction = `PILIH TEPAT 10 ASPEK PAPI KOSTICK (seperti N, G, A, L, P, I, T, V, S, R, D, W) yang PALING KRUSIAL untuk sukses di posisi tersebut.
-       Array 'papi' dalam JSON HARUS berisi tepat 10 objek.`;
+    papiInstruction = `Berdasarkan dokumen dan Job Description yang diberikan, tentukan antara 5 HINGGA 10 ASPEK PAPI KOSTICK yang PALING RELEVAN dan KRUSIAL untuk sukses di posisi ini.
+       Array 'papi' dalam JSON HARUS berisi antara 5 hingga 10 objek yang paling relevan dengan tuntutan jabatan.`;
   }
 
   const papiKnowledgeBase = buildPapiInterpretationGuide();
@@ -241,7 +234,7 @@ DATA YANG DIBERIKAN:
 - Standar PAPI untuk posisi tersebut
 
 PANDUAN OUTPUT JSON (SANGAT PENTING):
-1. Array 'papi' dalam JSON output HARUS BERISI TEPAT ${targetCount} OBJEK.
+1. Array 'papi' dalam JSON output HARUS BERISI ${targetCount > 0 ? `TEPAT ${targetCount}` : 'ANTARA 5 HINGGA 10'} OBJEK.
 2. ${papiInstruction}
 3. Untuk setiap aspek dalam array 'papi', berikan interpretasi mendalam yang MENGACU PADA DIMENSI PAPI (Work Direction, Leadership, Activity, Social Nature, Work Style, Temperament, Followership) dan KOMBINASI POLA antar aspek.
 4. Hitung 'match_percentage' untuk setiap aspek berdasarkan seberapa dekat skor kandidat dengan skor ideal untuk posisi tersebut (0-100).
@@ -279,7 +272,7 @@ FORMAT OUTPUT HARUS JSON VALID dengan struktur:
   "conclusion": { "total_job_fit_percentage": number, "status": "string", "notes": "string" }
 }
 
-OUTPUT HARUS JSON LENGKAP DENGAN TEPAT ${targetCount} ASPEK PAPI. JANGAN tambahkan teks apapun di luar JSON.`;
+OUTPUT HARUS JSON LENGKAP DENGAN ${targetCount > 0 ? `TEPAT ${targetCount}` : '5 HINGGA 10'} ASPEK PAPI. JANGAN tambahkan teks apapun di luar JSON.`;
 
   const papiScoresText = Object.entries(extractedData.papi_scores)
     .map(([code, score]) => `${code}: ${score}`)
@@ -356,8 +349,12 @@ Silakan analisis dan berikan output JSON sesuai format yang diminta.`;
     const result = robustParseJson<PsychogramData>(content);
 
     // Enforce PAPI count
-    if (result.papi && Array.isArray(result.papi) && result.papi.length > targetCount) {
-      result.papi = result.papi.slice(0, targetCount);
+    if (result.papi && Array.isArray(result.papi)) {
+      if (targetCount > 0) {
+        result.papi = result.papi.slice(0, targetCount);
+      } else if (result.papi.length > 10) {
+        result.papi = result.papi.slice(0, 10);
+      }
     }
 
     // Cost tracking
