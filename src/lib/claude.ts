@@ -205,10 +205,11 @@ Silakan analisis dan berikan output JSON sesuai format yang diminta.`;
     }
 
     const data = await response.json() as any;
-    const contentBlock = data.content?.[0];
-    const content = contentBlock?.text;
+    const textBlock = data.content?.find((block: any) => block.type === 'text');
+    const content = textBlock?.text || data.content?.map((b: any) => b.text).filter(Boolean).join('\n');
 
     if (!content) {
+      console.error("Claude raw response data:", data);
       throw new Error("Claude memberikan respons kosong.");
     }
 
@@ -401,9 +402,11 @@ CRITICAL: Return ONLY valid JSON. Do not include markdown code blocks.`;
     }
 
     const data = await response.json() as any;
-    const content = data.content?.[0]?.text;
+    const textBlock = data.content?.find((block: any) => block.type === 'text');
+    const content = textBlock?.text || data.content?.map((b: any) => b.text).filter(Boolean).join('\n');
 
     if (!content) {
+      console.error("Claude raw response data:", data);
       throw new Error("Claude memberikan respons kosong.");
     }
 
