@@ -9,6 +9,136 @@ const CLAUDE_INPUT_USD_PER_1M = 3.0;
 const CLAUDE_OUTPUT_USD_PER_1M = 15.0;
 const USD_TO_IDR = 17_500;
 
+/**
+ * Ultra-robust JSON parser that handles:
+ * 1. Direct JSON objects
+ * 2. Markdown code block wrappers (```json ... ```)
+ * 3. Balanced brace JSON extraction ({ ... }) anywhere in response
+ * 4. Auto-repairing truncated/incomplete JSON
+ */
+function robustParseJson<T = any>(input: string): T {
+  if (!input || !input.trim()) {
+    throw new SyntaxError("Teks respons kosong.");
+  }
+
+  const raw = input.trim();
+
+  // 1. Direct parse
+  try {
+    return JSON.parse(raw);
+  } catch {}
+
+  // 2. Code block extraction
+  const codeBlockMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/i);
+  if (codeBlockMatch && codeBlockMatch[1]) {
+    try {
+      return JSON.parse(codeBlockMatch[1].trim());
+    } catch {}
+  }
+
+  // 3. Balanced brace JSON extraction
+  const extracted = extractJsonObject(raw);
+  if (extracted) {
+    try {
+      return JSON.parse(extracted);
+    } catch {}
+  }
+
+  // 4. Try auto-repairing unclosed JSON
+  const repaired = tryRepairJson(extracted || raw);
+  if (repaired) {
+    try {
+      return JSON.parse(repaired);
+    } catch {}
+  }
+
+  console.error("Claude raw content that failed JSON parse:\n", raw);
+  throw new SyntaxError("Invalid JSON");
+}
+
+function extractJsonObject(str: string): string | null {
+  const start = str.indexOf('{');
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < str.length; i++) {
+    const char = str[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (char === '\\') {
+      escape = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (!inString) {
+      if (char === '{') depth++;
+      else if (char === '}') {
+        depth--;
+        if (depth === 0) {
+          return str.substring(start, i + 1);
+        }
+      }
+    }
+  }
+
+  return str.substring(start);
+}
+
+function tryRepairJson(str: string): string | null {
+  let start = str.indexOf('{');
+  if (start === -1) return null;
+  let s = str.substring(start).trim();
+
+  let inString = false;
+  let escape = false;
+  let stack: string[] = [];
+
+  for (let i = 0; i < s.length; i++) {
+    const char = s[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (char === '\\') {
+      escape = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (!inString) {
+      if (char === '{') stack.push('}');
+      else if (char === '[') stack.push(']');
+      else if (char === '}' || char === ']') {
+        if (stack.length > 0 && stack[stack.length - 1] === char) {
+          stack.pop();
+        }
+      }
+    }
+  }
+
+  if (inString) {
+    s += '"';
+  }
+
+  s = s.replace(/,\s*$/, '');
+
+  while (stack.length > 0) {
+    s += stack.pop();
+  }
+
+  return s;
+}
+
 interface ExtractedRawData {
   identity: {
     name: string;
@@ -213,38 +343,7 @@ Silakan analisis dan berikan output JSON sesuai format yang diminta.`;
       throw new Error("Claude memberikan respons kosong.");
     }
 
-    // Robust JSON extraction from Claude response
-    let result: PsychogramData;
-    try {
-      result = JSON.parse(content) as PsychogramData;
-    } catch {
-      // Strategy 1: Strip markdown code block wrappers
-      const codeBlockMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-      if (codeBlockMatch) {
-        try {
-          result = JSON.parse(codeBlockMatch[1].trim()) as PsychogramData;
-        } catch {
-          result = null as any;
-        }
-      }
-
-      // Strategy 2: Find the first { ... } JSON object in the text
-      if (!result) {
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          try {
-            result = JSON.parse(jsonMatch[0]) as PsychogramData;
-          } catch {
-            result = null as any;
-          }
-        }
-      }
-
-      if (!result) {
-        console.error("Claude raw content that failed JSON parse:", content.substring(0, 500));
-        throw new SyntaxError("Invalid JSON");
-      }
-    }
+    const result = robustParseJson<PsychogramData>(content);
 
     // Enforce PAPI count
     if (result.papi && Array.isArray(result.papi)) {
@@ -354,23 +453,7 @@ CRITICAL: Return ONLY valid JSON format. Do not include markdown code block synt
     
     if (!content) throw new Error("Translation empty response.");
 
-    // Robust JSON extraction
-    let result: any;
-    try {
-      result = JSON.parse(content);
-    } catch {
-      const codeBlockMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-      if (codeBlockMatch) {
-        try { result = JSON.parse(codeBlockMatch[1].trim()); } catch { result = null; }
-      }
-      if (!result) {
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          try { result = JSON.parse(jsonMatch[0]); } catch { result = null; }
-        }
-      }
-      if (!result) throw new SyntaxError("Translation JSON invalid");
-    }
+    const result = robustParseJson<any>(content);
 
     const translatedData = {
       cognitive: { ...data.cognitive, ...result.cognitive },
@@ -455,26 +538,7 @@ CRITICAL: Return ONLY valid JSON. Do not include markdown code blocks.`;
       throw new Error("Claude memberikan respons kosong.");
     }
 
-    // Robust JSON extraction from Claude response
-    let result: any;
-    try {
-      result = JSON.parse(content);
-    } catch {
-      const codeBlockMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-      if (codeBlockMatch) {
-        try { result = JSON.parse(codeBlockMatch[1].trim()); } catch { result = null; }
-      }
-      if (!result) {
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          try { result = JSON.parse(jsonMatch[0]); } catch { result = null; }
-        }
-      }
-      if (!result) {
-        console.error("Claude raw content that failed JSON parse:", content.substring(0, 500));
-        throw new SyntaxError("Invalid JSON");
-      }
-    }
+    const result = robustParseJson<any>(content);
 
     if (result.papi_aspects && Array.isArray(result.papi_aspects)) {
       result.papi_aspects = result.papi_aspects.slice(0, aspectCount);
