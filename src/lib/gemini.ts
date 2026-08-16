@@ -220,7 +220,9 @@ export async function analyzePsychogram(
 
   try {
     const standardCodes = papiStandard ? papiStandard.split(',').map(s => s.trim()).filter(Boolean) : [];
-    const count = standardCodes.length || 10;
+    const count = (profileAspects && profileAspects.length > 0)
+      ? profileAspects.length
+      : (standardCodes.length >= 5 ? standardCodes.length : 10);
 
     // Build rich standard description with ideal ranges if profile is available
     let papiInstruction: string;
@@ -229,16 +231,16 @@ export async function analyzePsychogram(
       const aspectDetails = profileAspects.map(a => 
         `- ${a.code} (${a.name}): Skor Ideal = ${a.ideal_range}. Alasan: ${a.reason}`
       ).join('\n');
-      papiInstruction = `SAYA TELAH MENETAPKAN STANDAR PROFIL JABATAN INI. ANDA WAJIB MENGEVALUASI DAN HANYA MENGEMBALIKAN TEPAT ${count} ASPEK BERIKUT DALAM ARRAY 'papi': [${papiStandard}].
+      papiInstruction = `SAYA TELAH MENETAPKAN STANDAR PROFIL JABATAN INI (${count} ASPEK). ANDA WAJIB MENGEVALUASI DAN HANYA MENGEMBALIKAN TEPAT ${count} ASPEK BERIKUT DALAM ARRAY 'papi': [${papiStandard}].
 DILARANG KERAS memasukkan aspek lain di luar daftar tersebut.
 Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT ${count}.`;
       idealRangeAnchor = `\n\nPROFIL STANDAR JABATAN (WAJIB DIIKUTI):\nBerikut adalah skor ideal yang SUDAH DITETAPKAN untuk setiap aspek. Anda WAJIB menggunakan nilai 'ideal_score' yang sesuai dengan rentang di bawah ini. DILARANG mengarang skor ideal sendiri.\n${aspectDetails}`;
-    } else if (papiStandard) {
-      papiInstruction = `SAYA TELAH MENETAPKAN STANDAR UNTUK JABATAN INI. ANDA WAJIB MENGEVALUASI DAN HANYA MENGEMBALIKAN TEPAT ${count} ASPEK BERIKUT DALAM ARRAY 'papi': [${papiStandard}]. 
+    } else if (standardCodes.length >= 5) {
+      papiInstruction = `SAYA TELAH MENETAPKAN STANDAR UNTUK JABATAN INI (${count} ASPEK). ANDA WAJIB MENGEVALUASI DAN HANYA MENGEMBALIKAN TEPAT ${count} ASPEK BERIKUT DALAM ARRAY 'papi': [${papiStandard}]. 
          DILARANG KERAS memasukkan aspek lain di luar daftar tersebut. 
          Pastikan jumlah objek dalam array 'papi' ADALAH TEPAT ${count}.`;
     } else {
-      papiInstruction = `PILIH TEPAT 10 ASPEK PAPI KOSTICK yang PALING KRUSIAL untuk sukses di posisi tersebut. 
+      papiInstruction = `PILIH TEPAT 10 ASPEK PAPI KOSTICK (seperti N, G, A, L, P, I, T, V, S, R) yang PALING KRUSIAL untuk sukses di posisi tersebut. 
          Array 'papi' dalam JSON HARUS berisi tepat 10 objek.`;
     }
 

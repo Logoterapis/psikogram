@@ -222,8 +222,19 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
     const cData = lang === 'en' && cand.translatedData?.en ? cand.translatedData.en : cand;
     const cv = cData.cv_evaluation?.match_percentage || 0;
     const cog = cData.cognitive?.match_percentage || 0;
-    const papi = cData.papi?.length
-      ? Math.round(cData.papi.reduce((acc, curr) => acc + (curr.match_percentage || 0), 0) / cData.papi.length)
+    const papiAspects = cData.papi || [];
+    const papi = papiAspects.length
+      ? Math.round(papiAspects.reduce((acc, curr) => {
+          let val = typeof curr.match_percentage === 'number' ? curr.match_percentage : 0;
+          if (!val && curr.fit) {
+            const fitLower = curr.fit.toLowerCase();
+            if (fitLower.includes('sangat')) val = 95;
+            else if (fitLower.includes('sesuai')) val = 80;
+            else if (fitLower.includes('cukup')) val = 60;
+            else val = 40;
+          }
+          return acc + val;
+        }, 0) / papiAspects.length)
       : 0;
     const total = Math.round((cv * 0.34) + (cog * 0.33) + (papi * 0.33));
     return { cv, cog, papi, total };
