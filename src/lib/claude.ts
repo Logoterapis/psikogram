@@ -2,7 +2,7 @@ import { PsychogramData, CostDetail, JobProfileAspect } from "../types";
 import { buildPapiStandardSystemPrompt, buildPapiInterpretationGuide } from "./papi-constants";
 
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
-const CLAUDE_MODEL = "claude-sonnet-4-20250514";
+const CLAUDE_MODEL = "claude-sonnet-5";
 
 // Pricing: Claude Sonnet 4 — $3/1M input, $15/1M output
 const CLAUDE_INPUT_USD_PER_1M = 3.0;
@@ -192,7 +192,6 @@ Silakan analisis dan berikan output JSON sesuai format yang diminta.`;
         messages: [
           { role: "user", content: userMessage },
         ],
-        temperature: 0.1,
       }),
     });
 
@@ -312,7 +311,6 @@ CRITICAL: Return ONLY valid JSON format. Do not include markdown code block synt
         messages: [
           { role: "user", content: JSON.stringify(payloadToTranslate) },
         ],
-        temperature: 0.1,
       }),
     });
 
@@ -390,7 +388,6 @@ CRITICAL: Return ONLY valid JSON. Do not include markdown code blocks.`;
         messages: [
           { role: "user", content: `Analisis JD berikut:\n${jobDescText}` }
         ],
-        temperature: 0.2,
       }),
     });
 
