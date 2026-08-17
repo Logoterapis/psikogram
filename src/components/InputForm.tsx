@@ -114,14 +114,14 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
 
   const handlePsikotesChange = (files: FileList | null) => {
     if (!files) return;
-    const selected = Array.from(files).slice(0, 5); // Maksimal 5 file
+    const selected = Array.from(files).slice(0, 10); // Maksimal 10 file
     setPsikotesFiles(selected);
     updateCandidatePairs(selected, cvFiles);
   };
 
   const handleCvChange = (files: FileList | null) => {
     if (!files) return;
-    const selected = Array.from(files).slice(0, 5); // Maksimal 5 file
+    const selected = Array.from(files).slice(0, 10); // Maksimal 10 file
     setCvFiles(selected);
     updateCandidatePairs(psikotesFiles, selected);
   };
@@ -129,7 +129,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
 
   const handleSubmit = async () => {
     if (candidatePairs.length === 0) return alert("Mohon unggah setidaknya 1 file PDF hasil Psikotes.");
-    if (candidatePairs.length > 5) return alert("Maksimal unggah adalah 5 kandidat per sesi.");
+    if (candidatePairs.length > 10) return alert("Maksimal unggah adalah 10 kandidat per sesi.");
     if (!jobDesc && !jdFile) return alert("Mohon masukkan Job Description.");
 
     try {
@@ -278,7 +278,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
           {/* Psikotes Upload */}
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm font-bold text-slate-700 uppercase tracking-wider">
-              <FileUp className="w-4 h-4 text-red-600" /> 1. Hasil Tes (PDF, Maks 5)
+              <FileUp className="w-4 h-4 text-red-600" /> 1. Hasil Tes (PDF, Maks 10)
             </label>
             <div className={cn(
               "relative border-2 border-dashed rounded-2xl p-6 transition-all group",
@@ -305,7 +305,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
                   <div className="flex flex-col items-center gap-2">
                     <Upload className="w-8 h-8 text-slate-300 group-hover:text-red-400 transition-colors" />
                     <p className="text-sm font-bold text-slate-500">Klik atau Drag PDF WPT & PAPI</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Maksimal 5 file PDF</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Maksimal 10 file PDF</p>
                   </div>
                 )}
               </div>
@@ -315,7 +315,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
           {/* CV Upload */}
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm font-bold text-slate-700 uppercase tracking-wider">
-              <User className="w-4 h-4 text-blue-600" /> 2. CV / Resume (PDF, Maks 5)
+              <User className="w-4 h-4 text-blue-600" /> 2. CV / Resume (PDF, Maks 10)
             </label>
             <div className={cn(
               "relative border-2 border-dashed rounded-2xl p-6 transition-all group",
@@ -342,7 +342,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
                   <div className="flex flex-col items-center gap-2">
                     <Upload className="w-8 h-8 text-slate-300 group-hover:text-blue-400 transition-colors" />
                     <p className="text-sm font-bold text-slate-500">Klik atau Drag CV Pelamar</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Opsional, maksimal 5 file PDF</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Opsional, maksimal 10 file PDF</p>
                   </div>
                 )}
               </div>
