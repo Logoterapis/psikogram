@@ -40,7 +40,7 @@ export default function App() {
           data = await analyzeWithDeepSeek(extractedData, (process.env as any).DEEPSEEK_API_KEY, "deepseek-chat", profileAspects);
         } else if (model === 'claude') {
           const extractedData = await extractRawDataFromPdf(candidate.psikotesBase64, candidate.cvBase64, jobDesc, papiStandard, apiKey, "gemini-2.5-flash");
-          data = await analyzeWithClaude(extractedData, (process.env as any).CLAUDE_API_KEY || (process.env as any).ANTHROPIC_API_KEY, "claude-sonnet-5", profileAspects);
+          data = await analyzeWithClaude(extractedData, (process.env as any).CLAUDE_API_KEY || (process.env as any).ANTHROPIC_API_KEY, "claude-haiku-4-5", profileAspects);
         } else {
           data = await analyzePsychogram(candidate.psikotesBase64, candidate.cvBase64, jobDesc, papiStandard, apiKey, model, profileAspects);
         }

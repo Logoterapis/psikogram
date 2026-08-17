@@ -2,11 +2,11 @@ import { PsychogramData, CostDetail, JobProfileAspect } from "../types";
 import { buildPapiStandardSystemPrompt, buildPapiInterpretationGuide } from "./papi-constants";
 
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
-const CLAUDE_MODEL = "claude-sonnet-5";
+const CLAUDE_MODEL = "claude-haiku-4-5";
 
-// Pricing: Claude Sonnet 4 — $3/1M input, $15/1M output
-const CLAUDE_INPUT_USD_PER_1M = 3.0;
-const CLAUDE_OUTPUT_USD_PER_1M = 15.0;
+// Pricing: Claude Haiku 4.5 — $1/1M input, $5/1M output
+const CLAUDE_INPUT_USD_PER_1M = 1.0;
+const CLAUDE_OUTPUT_USD_PER_1M = 5.0;
 const USD_TO_IDR = 17_500;
 
 /**
