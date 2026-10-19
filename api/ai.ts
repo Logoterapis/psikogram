@@ -80,7 +80,7 @@ export async function POST(request: Request) {
       const model = input.model as Model;
       const aspects = Array.isArray(input.profileAspects) ? input.profileAspects as JobProfileAspect[] : undefined;
       if (model === 'gemini-2.0-flash' || model === 'gemini-2.5-flash') {
-        return Response.json(await analyzePsychogram(psikotes, cv, jobDesc, standard, undefined, 'gemini-2.0-flash', aspects), { headers });
+        return Response.json(await analyzePsychogram(psikotes, cv, jobDesc, standard, undefined, 'gemini-2.5-flash', aspects), { headers });
       }
       if (model === 'deepseek' && !process.env.DEEPSEEK_API_KEY) return fail(503, 'Kunci DeepSeek belum dikonfigurasi di server.');
       if (model === 'claude' && !process.env.CLAUDE_API_KEY) return fail(503, 'Kunci Claude belum dikonfigurasi di server.');

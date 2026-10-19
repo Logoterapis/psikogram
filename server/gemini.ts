@@ -31,10 +31,11 @@ function calculateGeminiCost(inputTokens: number, outputTokens: number, thinking
   return { inputCost, outputCost, totalRupiah, totalOutputTokens };
 }
 
-// Use gemini-2.0-flash with fallback to gemini-1.5-flash
+// Primary: gemini-2.5-flash (stable). Fallback: gemini-3.6-flash.
+// gemini-2.0-flash and 1.5-flash are shut down by Google and must not be used.
 const FALLBACK_MODELS = [
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
+  "gemini-2.5-flash",
+  "gemini-3.6-flash",
 ];
 
 // Retry helper with exponential backoff and model fallback
@@ -59,7 +60,15 @@ async function retryWithFallback<T>(
                             error.message?.includes('high demand') ||
                             error.message?.includes('overloaded') ||
                             error.message?.includes('RESOURCE_EXHAUSTED');
-        
+        const isModelGone = error.message?.includes('404') ||
+                            error.message?.includes('NOT_FOUND') ||
+                            error.message?.includes('no longer available');
+
+        if (isModelGone && modelIdx < models.length - 1) {
+          console.warn(`[Gemini] Model ${model} not available. Falling back to next model...`);
+          break;
+        }
+
         if (isRetryable && attempt < maxRetries) {
           const delay = baseDelay * Math.pow(2, attempt);
           console.warn(`[Gemini] Model ${model} unavailable. Retrying in ${delay / 1000}s...`);
@@ -149,7 +158,7 @@ export async function generatePapiStandard(
   jobDesc: string | { data: string, mimeType: string },
   aspectCount: number = 10,
   customApiKey?: string,
-  selectedModel: string = "gemini-2.0-flash"
+  selectedModel: string = "gemini-2.5-flash"
 ): Promise<{ role_summary: string, codes_string: string, papi_aspects: any[] }> {
   const apiKey = customApiKey || process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("API Key tidak ditemukan.");
@@ -211,7 +220,7 @@ export async function analyzePsychogram(
   jobDesc: string | { data: string, mimeType: string },
   papiStandard: string,
   customApiKey?: string,
-  selectedModel: string = "gemini-2.0-flash",
+  selectedModel: string = "gemini-2.5-flash",
   profileAspects?: JobProfileAspect[]
 ): Promise<PsychogramData> {
   const apiKey = customApiKey || process.env.GEMINI_API_KEY;
@@ -427,7 +436,7 @@ export async function extractRawDataFromPdf(
   jobDesc: string | { data: string, mimeType: string },
   papiStandard: string,
   customApiKey?: string,
-  selectedModel: string = "gemini-2.0-flash"
+  selectedModel: string = "gemini-2.5-flash"
 ): Promise<ExtractedRawData> {
   const apiKey = customApiKey || process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("Gemini API Key tidak ditemukan.");
@@ -669,7 +678,7 @@ Ensure arrays (like pros, cons, strengths, risks) remain arrays of translated st
       };
 
       return translatedData as any;
-    }, "gemini-2.0-flash");
+    }, "gemini-2.5-flash");
   } catch (error: any) {
     console.error("Translation failed:", error instanceof Error ? error.name : 'Unknown error');
     throw new Error(error.message || "Failed to translate report.");
