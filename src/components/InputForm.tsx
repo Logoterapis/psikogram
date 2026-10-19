@@ -26,7 +26,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
   const [jdFile, setJdFile] = useState<{ data: string, mimeType: string } | null>(null);
   const [papiStandard, setPapiStandard] = useState('G, L, I, T, V, S, R, D, C, E');
   const [jdTab, setJdTab] = useState<'text' | 'file'>('text');
-  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
+  const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
   const [papiCount, setPapiCount] = useState(10);
   const [isGeneratingPapi, setIsGeneratingPapi] = useState(false);
   const [generatedPapi, setGeneratedPapi] = useState<{ role_summary: string, codes_string: string, papi_aspects: any[] } | null>(null);
@@ -188,7 +188,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
     try {
       const jdPayload = jdFile ? jdFile : jobDesc;
       const result = await generatePapiStandard(
-        jdPayload, papiCount, selectedModel as 'gemini-2.5-flash' | 'deepseek' | 'claude',
+        jdPayload, papiCount, selectedModel as 'gemini-2.0-flash' | 'gemini-2.5-flash' | 'deepseek' | 'claude',
       );
       setGeneratedPapi(result);
       setPapiStandard(result.codes_string);
@@ -223,15 +223,15 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
             <div className="grid grid-cols-3 gap-3">
               <button
                 type="button"
-                onClick={() => setSelectedModel('gemini-2.5-flash')}
+                onClick={() => setSelectedModel('gemini-2.0-flash')}
                 className={cn(
                   "p-4 rounded-xl border-2 text-left transition-all",
-                  selectedModel === 'gemini-2.5-flash'
+                  selectedModel === 'gemini-2.0-flash'
                     ? "border-red-500 bg-red-50 shadow-md"
                     : "border-slate-200 bg-white hover:border-slate-300"
                 )}
               >
-                <div className="text-xs font-black text-slate-900 mb-1">🚀 Gemini 2.5 Flash</div>
+                <div className="text-xs font-black text-slate-900 mb-1">🚀 Gemini 2.0 Flash</div>
                 <p className="text-[10px] text-slate-500 font-medium leading-tight">Full Gemini — OCR + Analisis dalam satu langkah. Cepat & akurat.</p>
               </button>
               <button

@@ -4,7 +4,7 @@ import { analyzeWithClaude, generatePapiStandardWithClaude } from '../server/cla
 import type { JobProfileAspect } from '../src/types';
 
 const headers = { 'Cache-Control': 'no-store' };
-type Model = 'gemini-2.5-flash' | 'deepseek' | 'claude';
+type Model = 'gemini-2.0-flash' | 'gemini-2.5-flash' | 'deepseek' | 'claude';
 
 function fail(status: number, error: string) {
   return Response.json({ error }, { status, headers });
@@ -18,7 +18,7 @@ function isJobDescription(value: unknown): value is string | { data: string; mim
 }
 
 function isModel(value: unknown): value is Model {
-  return value === 'gemini-2.5-flash' || value === 'deepseek' || value === 'claude';
+  return value === 'gemini-2.0-flash' || value === 'gemini-2.5-flash' || value === 'deepseek' || value === 'claude';
 }
 
 export async function POST(request: Request) {
@@ -79,8 +79,8 @@ export async function POST(request: Request) {
       const standard = input.papiStandard;
       const model = input.model as Model;
       const aspects = Array.isArray(input.profileAspects) ? input.profileAspects as JobProfileAspect[] : undefined;
-      if (model === 'gemini-2.5-flash') {
-        return Response.json(await analyzePsychogram(psikotes, cv, jobDesc, standard, undefined, model, aspects), { headers });
+      if (model === 'gemini-2.0-flash' || model === 'gemini-2.5-flash') {
+        return Response.json(await analyzePsychogram(psikotes, cv, jobDesc, standard, undefined, 'gemini-2.0-flash', aspects), { headers });
       }
       if (model === 'deepseek' && !process.env.DEEPSEEK_API_KEY) return fail(503, 'Kunci DeepSeek belum dikonfigurasi di server.');
       if (model === 'claude' && !process.env.CLAUDE_API_KEY) return fail(503, 'Kunci Claude belum dikonfigurasi di server.');

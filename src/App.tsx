@@ -33,7 +33,7 @@ export default function App() {
 
         const data: PsychogramData = await analyzeCandidate(
           candidate.psikotesBase64, candidate.cvBase64, jobDesc, papiStandard,
-          model as 'gemini-2.5-flash' | 'deepseek' | 'claude', profileAspects,
+          model as 'gemini-2.0-flash' | 'gemini-2.5-flash' | 'deepseek' | 'claude', profileAspects,
         );
 
         // Pastikan nama kandidat konsisten dengan form pairing

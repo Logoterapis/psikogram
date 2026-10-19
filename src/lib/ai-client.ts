@@ -1,7 +1,7 @@
 import type { JobProfileAspect, PsychogramData } from '../types';
 
 type JobDescription = string | { data: string; mimeType: string };
-type Model = 'gemini-2.5-flash' | 'deepseek' | 'claude';
+type Model = 'gemini-2.0-flash' | 'gemini-2.5-flash' | 'deepseek' | 'claude';
 
 async function requestAI<T>(payload: object): Promise<T> {
   const body = JSON.stringify(payload);
