@@ -1,5 +1,5 @@
-import { PsychogramData, CostDetail, JobProfileAspect } from "../src/types";
-import { buildPapiStandardSystemPrompt, buildPapiInterpretationGuide } from "../src/lib/papi-constants";
+import type { PsychogramData, CostDetail, JobProfileAspect } from "../src/types.js";
+import { buildPapiStandardSystemPrompt, buildPapiInterpretationGuide } from "../src/lib/papi-constants.js";
 
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 const CLAUDE_MODEL = "claude-sonnet-4-20250514";

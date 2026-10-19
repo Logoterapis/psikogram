@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { PsychogramData, CostDetail, JobProfileAspect } from "../src/types";
-import { buildPapiStandardSystemPrompt, buildPapiInterpretationGuide } from "../src/lib/papi-constants";
+import type { PsychogramData, CostDetail, JobProfileAspect } from "../src/types.js";
+import { buildPapiStandardSystemPrompt, buildPapiInterpretationGuide } from "../src/lib/papi-constants.js";
 
 // ============================================================
 // PRICING CONSTANTS (Gemini 2.5 Flash — April 2026)

@@ -1,5 +1,5 @@
-import { PsychogramData, CostDetail, JobProfileAspect } from "../src/types";
-import { buildPapiStandardSystemPrompt, buildPapiInterpretationGuide } from "../src/lib/papi-constants";
+import type { PsychogramData, CostDetail, JobProfileAspect } from "../src/types.js";
+import { buildPapiStandardSystemPrompt, buildPapiInterpretationGuide } from "../src/lib/papi-constants.js";
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions";
 

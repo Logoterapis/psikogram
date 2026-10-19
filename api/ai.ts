@@ -1,7 +1,7 @@
-import { analyzePsychogram, extractRawDataFromPdf, generatePapiStandard } from '../server/gemini';
-import { analyzeWithDeepSeek, generatePapiStandardWithDeepSeek, translateWithDeepSeek } from '../server/deepseek';
-import { analyzeWithClaude, generatePapiStandardWithClaude } from '../server/claude';
-import type { JobProfileAspect } from '../src/types';
+import { analyzePsychogram, extractRawDataFromPdf, generatePapiStandard } from '../server/gemini.js';
+import { analyzeWithDeepSeek, generatePapiStandardWithDeepSeek, translateWithDeepSeek } from '../server/deepseek.js';
+import { analyzeWithClaude, generatePapiStandardWithClaude } from '../server/claude.js';
+import type { JobProfileAspect } from '../src/types.js';
 
 const headers = { 'Cache-Control': 'no-store' };
 type Model = 'gemini-2.0-flash' | 'gemini-2.5-flash' | 'deepseek' | 'claude';
