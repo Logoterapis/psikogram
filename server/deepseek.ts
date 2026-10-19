@@ -22,7 +22,7 @@ interface ExtractedRawData {
 export async function analyzeWithDeepSeek(
   extractedData: ExtractedRawData,
   deepseekApiKey: string,
-  model: string = "deepseek-chat",
+  model: string = "deepseek-v4-pro",
   profileAspects?: JobProfileAspect[]
 ): Promise<PsychogramData> {
   if (!deepseekApiKey) throw new Error("DeepSeek API Key tidak ditemukan.");
@@ -284,7 +284,7 @@ CRITICAL: Return ONLY valid JSON format. Do not include markdown code block synt
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "deepseek-chat",
+        model: "deepseek-flash",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: JSON.stringify(payloadToTranslate) },
@@ -327,7 +327,7 @@ export async function generatePapiStandardWithDeepSeek(
   jobDesc: string | { data: string, mimeType: string },
   aspectCount: number = 10,
   deepseekApiKey: string,
-  model: string = "deepseek-chat"
+  model: string = "deepseek-flash"
 ): Promise<{ role_summary: string, codes_string: string, papi_aspects: any[] }> {
   if (!deepseekApiKey) throw new Error("DeepSeek API Key tidak ditemukan.");
 

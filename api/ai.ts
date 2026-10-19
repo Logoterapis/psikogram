@@ -86,7 +86,7 @@ export async function POST(request: Request) {
       if (model === 'claude' && !process.env.CLAUDE_API_KEY) return fail(503, 'Kunci Claude belum dikonfigurasi di server.');
       const extracted = await extractRawDataFromPdf(psikotes, cv, jobDesc, standard);
       if (model === 'deepseek') {
-        return Response.json(await analyzeWithDeepSeek(extracted, process.env.DEEPSEEK_API_KEY!, 'deepseek-chat', aspects), { headers });
+        return Response.json(await analyzeWithDeepSeek(extracted, process.env.DEEPSEEK_API_KEY!, 'deepseek-v4-pro', aspects), { headers });
       }
       return Response.json(await analyzeWithClaude(extracted, process.env.CLAUDE_API_KEY!, 'claude-sonnet-4-20250514', aspects), { headers });
     }
