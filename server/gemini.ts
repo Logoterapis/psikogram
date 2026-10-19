@@ -181,7 +181,8 @@ export async function generatePapiStandard(
             code: { type: Type.STRING },
             name: { type: Type.STRING },
             ideal_range: { type: Type.STRING },
-            reason: { type: Type.STRING }
+            reason: { type: Type.STRING },
+            priority: { type: Type.STRING, description: "Salah satu dari: kritikal, pendukung, risiko" }
           }
         }
       }
@@ -259,8 +260,9 @@ TEMPLATE NARASI (WAJIB DIIKUTI untuk setiap aspek PAPI):
 Gunakan pola narasi berikut agar KONSISTEN di setiap laporan:
 - 'interpretation': "Kandidat memperoleh skor [skor] pada aspek [nama aspek] ([kode]). [Penjelasan mendalam 2-3 kalimat tentang apa yang ditunjukkan skor tersebut terhadap perilaku kerja kandidat, dengan mempertimbangkan DIMENSI yang relevan dan KOMBINASI POLA antar aspek]. Dalam konteks posisi yang dilamar, [analisis implikasi skor terhadap tuntutan jabatan, termasuk potensi RISIKO jika skor terlalu tinggi/rendah]."
 - 'relevance_reason': "Aspek [nama aspek] menjadi krusial untuk posisi ini karena [alasan spesifik terkait job description]. [Penjelasan hubungan aspek dengan keberhasilan di jabatan tersebut, merujuk pada standar ideal untuk jenis jabatan ini]."
-- 'fit': Tentukan berdasarkan jarak skor dengan ideal: gap 0-1 = "Sangat Sesuai", gap 2-3 = "Sesuai", gap 4-5 = "Cukup Sesuai", gap >5 = "Kurang Sesuai".
-- 'match_percentage': Hitung secara konsisten: jika skor kandidat berada dalam rentang ideal = 90-100%, gap 1-2 = 70-89%, gap 3-4 = 50-69%, gap >4 = 20-49%.
+- 'fit': Selisih = jarak skor ke TEPI rentang ideal terdekat (0 bila skor di dalam rentang). Selisih 0 = "Sangat Sesuai", maksimal 1 = "Sesuai", maksimal 2 = "Cukup Sesuai", maksimal 3 = "Kurang Sesuai", lebih dari 3 = "Tidak Sesuai". Skor DI ATAS rentang dihitung setengah selisih (tetap sebutkan risiko kelebihan skor). Sistem akan menghitung ulang label ini secara otomatis, jadi narasi WAJIB selaras dengannya.
+- 'match_percentage': Skor di dalam rentang = 100. Selain itu kurangi 18 poin untuk setiap 1 selisih (minimal 10).
+- KONSISTENSI NARASI: nada 'interpretation' HARUS selaras dengan label fit. Selisih 3 atau lebih WAJIB dinyatakan sebagai ketidaksesuaian/risiko nyata (bukan "cukup" atau "dapat diterima"); skor di bawah rentang JANGAN digambarkan sebagai "sangat sesuai". Skor PAPI menggambarkan kecenderungan perilaku, jadi untuk skor ekstrem gunakan frasa "perlu dikonfirmasi saat wawancara", bukan vonis kemampuan.
 
 ATURAN KETAT UNTUK KOGNITIF (IQ) MATCH RATE & DESKRIPSI:
 Berdasarkan "Posisi" yang dilamar (Kategori 1: Staff/Manajerial/Analis ATAU Kategori 2: Operator/Helper/Driver), Anda WAJIB menggunakan pedoman berikut untuk menentukan 'match_percentage' dan menulis 'description' kognitif:

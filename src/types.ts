@@ -23,6 +23,8 @@ export interface CvEvaluation {
   cons: string[];
 }
 
+export type AspectPriority = 'kritikal' | 'pendukung' | 'risiko';
+
 export interface PapiAspect {
   aspect_name: string;
   code: string;
@@ -32,6 +34,11 @@ export interface PapiAspect {
   match_percentage: number;
   fit: string;
   relevance_reason: string;
+  // Diisi oleh kode (src/lib/papi-scoring.ts), bukan oleh AI:
+  fit_level?: 1 | 2 | 3 | 4 | 5;
+  direction?: 'within' | 'below' | 'above';
+  priority?: AspectPriority;
+  weight?: number;
 }
 
 export interface Analysis {
@@ -58,6 +65,7 @@ export interface JobProfileAspect {
   name: string;
   ideal_range: string;
   reason: string;
+  priority?: AspectPriority;
 }
 
 export interface JobProfile {
@@ -74,6 +82,7 @@ export interface PsychogramData {
   cognitive: Cognitive;
   cv_evaluation: CvEvaluation;
   papi: PapiAspect[];
+  papi_summary?: { weighted_match: number; knockouts: string[] };
   analysis: Analysis;
   conclusion: Conclusion;
   costs?: CostDetail[];

@@ -2,6 +2,7 @@ import { analyzePsychogram, extractRawDataFromPdf, generatePapiStandard } from '
 import { analyzeWithDeepSeek, generatePapiStandardWithDeepSeek, translateWithDeepSeek } from '../server/deepseek.js';
 import { analyzeWithClaude, generatePapiStandardWithClaude } from '../server/claude.js';
 import type { JobProfileAspect } from '../src/types.js';
+import { applyScoring } from '../src/lib/papi-scoring.js';
 
 const headers = { 'Cache-Control': 'no-store' };
 type Model = 'gemini-2.0-flash' | 'gemini-2.5-flash' | 'deepseek' | 'claude';
@@ -80,15 +81,15 @@ export async function POST(request: Request) {
       const model = input.model as Model;
       const aspects = Array.isArray(input.profileAspects) ? input.profileAspects as JobProfileAspect[] : undefined;
       if (model === 'gemini-2.0-flash' || model === 'gemini-2.5-flash') {
-        return Response.json(await analyzePsychogram(psikotes, cv, jobDesc, standard, undefined, 'gemini-2.5-flash', aspects), { headers });
+        return Response.json(applyScoring(await analyzePsychogram(psikotes, cv, jobDesc, standard, undefined, 'gemini-2.5-flash', aspects), aspects), { headers });
       }
       if (model === 'deepseek' && !process.env.DEEPSEEK_API_KEY) return fail(503, 'Kunci DeepSeek belum dikonfigurasi di server.');
       if (model === 'claude' && !process.env.CLAUDE_API_KEY) return fail(503, 'Kunci Claude belum dikonfigurasi di server.');
       const extracted = await extractRawDataFromPdf(psikotes, cv, jobDesc, standard);
       if (model === 'deepseek') {
-        return Response.json(await analyzeWithDeepSeek(extracted, process.env.DEEPSEEK_API_KEY!, 'deepseek-v4-pro', aspects), { headers });
+        return Response.json(applyScoring(await analyzeWithDeepSeek(extracted, process.env.DEEPSEEK_API_KEY!, 'deepseek-v4-pro', aspects), aspects), { headers });
       }
-      return Response.json(await analyzeWithClaude(extracted, process.env.CLAUDE_API_KEY!, 'claude-sonnet-4-20250514', aspects), { headers });
+      return Response.json(applyScoring(await analyzeWithClaude(extracted, process.env.CLAUDE_API_KEY!, 'claude-sonnet-4-20250514', aspects), aspects), { headers });
     }
 
     if (!process.env.DEEPSEEK_API_KEY) return fail(503, 'Kunci DeepSeek belum dikonfigurasi di server.');

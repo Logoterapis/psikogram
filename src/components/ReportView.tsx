@@ -5,6 +5,7 @@ import { FileDown, ArrowLeft, CheckCircle2, AlertCircle, HelpCircle, AlertTriang
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { translateReport } from '../lib/ai-client';
+import { applyScoring, summarizePapi, decisionBand, FIT_LABELS, type DecisionBand, type FitLevel } from '../lib/papi-scoring';
 
 type Lang = 'id' | 'en';
 
@@ -56,7 +57,11 @@ const t = {
     notesNA: 'Tidak ada catatan tambahan.',
     confidential: 'Confidential Document',
     statusSuitable: 'SESUAI',
+    statusConsider: 'DAPAT DIPERTIMBANGKAN',
     statusNotSuitable: 'TIDAK SESUAI',
+    knockoutNote: (codes: string) => `Aspek kritikal di bawah standar: ${codes}. Wajib dikonfirmasi melalui wawancara sebelum keputusan.`,
+    aboveRange: 'melebihi rentang',
+    belowRange: 'di bawah rentang',
     printHeader: 'Laporan Pemeriksaan Psikologi',
     printFooterPrefix: 'Confidential • Sika Indonesia HR Assessment •',
   },
@@ -107,26 +112,47 @@ const t = {
     notesNA: 'No additional notes.',
     confidential: 'Confidential Document',
     statusSuitable: 'SUITABLE',
+    statusConsider: 'CAN BE CONSIDERED',
     statusNotSuitable: 'NOT SUITABLE',
+    knockoutNote: (codes: string) => `Critical aspects below standard: ${codes}. Must be confirmed through interview before a decision.`,
+    aboveRange: 'above range',
+    belowRange: 'below range',
     printHeader: 'Psychological Assessment Report',
     printFooterPrefix: 'Confidential • Sika Indonesia HR Assessment •',
   },
 };
 
-function getRecommendationStatus(score: number, lang: Lang) {
+function getRecommendationStatus(band: DecisionBand, lang: Lang) {
   const labels = t[lang];
-  if (score >= 60) return labels.statusSuitable;
+  if (band === 'disarankan') return labels.statusSuitable;
+  if (band === 'dipertimbangkan') return labels.statusConsider;
   return labels.statusNotSuitable;
 }
 
-function getScoreStatusColor(score: number) {
-  if (score >= 60) return 'text-emerald-600 bg-emerald-50 border-emerald-200';
+function getScoreStatusColor(band: DecisionBand) {
+  if (band === 'disarankan') return 'text-emerald-600 bg-emerald-50 border-emerald-200';
+  if (band === 'dipertimbangkan') return 'text-amber-600 bg-amber-50 border-amber-200';
   return 'text-red-600 bg-red-50 border-red-200';
 }
 
-function getScoreStatusIcon(score: number) {
-  if (score >= 60) return <CheckCircle2 className="w-6 h-6" />;
+function getScoreStatusIcon(band: DecisionBand) {
+  if (band === 'disarankan') return <CheckCircle2 className="w-6 h-6" />;
+  if (band === 'dipertimbangkan') return <AlertTriangle className="w-6 h-6" />;
   return <AlertCircle className="w-6 h-6" />;
+}
+
+const FIT_BADGE_CLASS: Record<FitLevel, string> = {
+  1: 'bg-emerald-100 text-emerald-700',
+  2: 'bg-lime-100 text-lime-700',
+  3: 'bg-amber-100 text-amber-700',
+  4: 'bg-orange-100 text-orange-700',
+  5: 'bg-red-100 text-red-700',
+};
+
+// Laporan lama (tanpa fit_level) dinilai ulang di sisi klien dengan aturan yang sama.
+function ensureScored(cand: PsychogramData): PsychogramData {
+  if (!cand.papi?.length) return cand;
+  return cand.papi.every(p => p.fit_level !== undefined) ? cand : applyScoring(cand);
 }
 
 interface RadarChartWrapperProps {
@@ -219,14 +245,15 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
   };
 
   const getCandidateStats = (cand: PsychogramData) => {
-    const cData = lang === 'en' && cand.translatedData?.en ? cand.translatedData.en : cand;
+    const scored = ensureScored(cand);
+    const cData = lang === 'en' && scored.translatedData?.en ? scored.translatedData.en : scored;
     const cv = cData.cv_evaluation?.match_percentage || 0;
     const cog = cData.cognitive?.match_percentage || 0;
-    const papi = cData.papi?.length
-      ? Math.round(cData.papi.reduce((acc, curr) => acc + (curr.match_percentage || 0), 0) / cData.papi.length)
-      : 0;
+    const summary = summarizePapi(scored.papi);
+    const papi = summary.weighted_match;
     const total = Math.round((cv * 0.34) + (cog * 0.33) + (papi * 0.33));
-    return { cv, cog, papi, total };
+    const band = decisionBand(total, summary.knockouts);
+    return { cv, cog, papi, total, band, knockouts: summary.knockouts };
   };
 
   const downloadPdf = () => {
@@ -238,11 +265,22 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
     : new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
 
   const renderSingleReport = (cand: PsychogramData, isBatchPrint: boolean = false) => {
-    const displayData = lang === 'en' && cand.translatedData?.en
-      ? { ...cand, ...cand.translatedData.en }
-      : cand;
+    const scoredCand = ensureScored(cand);
+    const displayData = lang === 'en' && scoredCand.translatedData?.en
+      ? { ...scoredCand, ...scoredCand.translatedData.en }
+      : scoredCand;
+    // Skor/level/label dari data terhitung; hanya teks yang diambil dari terjemahan.
+    const papiRows = (scoredCand.papi || []).map((p, i) => {
+      const tr = lang === 'en' ? displayData.papi?.[i] : undefined;
+      return {
+        ...p,
+        aspect_name: tr?.aspect_name || p.aspect_name,
+        interpretation: tr?.interpretation || p.interpretation,
+        relevance_reason: tr?.relevance_reason || p.relevance_reason,
+      };
+    });
 
-    const radarData = (cand.papi || []).map(p => {
+    const radarData = (scoredCand.papi || []).map(p => {
       let scoreVal = 0;
       if (typeof p.score === 'number') {
         scoreVal = p.score;
@@ -257,11 +295,11 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
       };
     });
 
-    const { cv: cvMatchScore, cog: cognitiveMatchScore, papi: papiAvgMatch, total: calculatedTotalJobFit } = getCandidateStats(cand);
+    const { cv: cvMatchScore, cog: cognitiveMatchScore, papi: papiAvgMatch, total: calculatedTotalJobFit, band: decisionBandValue, knockouts } = getCandidateStats(cand);
 
-    const recommendationStatus = getRecommendationStatus(calculatedTotalJobFit, lang);
-    const statusColor = getScoreStatusColor(calculatedTotalJobFit);
-    const statusIcon = getScoreStatusIcon(calculatedTotalJobFit);
+    const recommendationStatus = getRecommendationStatus(decisionBandValue, lang);
+    const statusColor = getScoreStatusColor(decisionBandValue);
+    const statusIcon = getScoreStatusIcon(decisionBandValue);
 
     return (
       <div 
@@ -349,7 +387,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
             <div className="flex justify-between items-start mb-4">
               <div className="flex-1">
                 <h4 className="font-bold text-sm text-slate-900 mb-2">{L.cvSummary}</h4>
-                <p className="text-sm text-slate-700 leading-relaxed">{displayData.cv_evaluation?.summary || L.cvSummaryNA}</p>
+                <p className="text-sm text-slate-700 leading-relaxed text-justify" lang={lang} style={{ hyphens: 'auto' }}>{displayData.cv_evaluation?.summary || L.cvSummaryNA}</p>
               </div>
               <div className="ml-8 text-right">
                 <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">{L.cvMatch}</div>
@@ -417,7 +455,13 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
           </div>
 
           <div className="mt-6 ml-4 overflow-hidden rounded-xl border border-slate-200">
-            <table className="w-full text-[10px] border-collapse font-sans">
+            <table className="w-full table-fixed text-[10px] border-collapse font-sans">
+              <colgroup>
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '11%' }} />
+                <col />
+                <col style={{ width: '13%' }} />
+              </colgroup>
               <thead>
                 <tr className="bg-slate-100 text-slate-600 uppercase font-bold">
                   <th className="p-2 text-left border-b border-slate-200">{L.thCrucial}</th>
@@ -427,26 +471,30 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {(displayData.papi || []).map((p, i) => (
+                {papiRows.map((p, i) => (
                   <tr key={i} className="hover:bg-[#fbfcfd] transition">
                     <td className="p-2 font-bold text-slate-800">{p.aspect_name || '-'} ({p.code || '?'})</td>
                     <td className="p-2 text-center">
                       <div className="font-black text-slate-900 text-sm">{p.score || '-'}</div>
                       <div className="text-[9px] font-bold text-slate-400 mt-0.5">{L.target}: {p.ideal_score || '-'}</div>
                     </td>
-                    <td className="p-2 text-slate-600 leading-tight">
+                    <td className="p-2 text-slate-600 leading-snug text-justify" lang={lang} style={{ hyphens: 'auto', WebkitHyphens: 'auto' }}>
                       <span className="font-semibold text-slate-800">{p.interpretation || '-'}</span>
                       <br />
                       <span className="text-[9px] italic text-slate-400">{p.relevance_reason || '-'}</span>
                     </td>
                     <td className="p-2 text-center">
                       <span className={cn(
-                        "px-2 py-0.5 rounded-full font-bold uppercase text-[9px]",
-                        (p.fit || '').toLowerCase().includes('tinggi') ? "bg-emerald-100 text-emerald-700" :
-                        (p.fit || '').toLowerCase().includes('rendah') ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
+                        "inline-block px-2 py-0.5 rounded-full font-bold uppercase text-[9px]",
+                        p.fit_level ? FIT_BADGE_CLASS[p.fit_level] : "bg-slate-100 text-slate-500"
                       )}>
-                        {p.fit || 'Sedang'}
+                        {p.fit_level ? FIT_LABELS[lang][p.fit_level] : (p.fit || '-')}
                       </span>
+                      {p.direction && p.direction !== 'within' && (
+                        <div className="text-[8px] font-semibold text-slate-400 mt-1 normal-case">
+                          {p.direction === 'above' ? '▲ ' + L.aboveRange : '▼ ' + L.belowRange}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -478,6 +526,9 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
               <div>
                 <p className="text-xs font-bold uppercase text-slate-400 mb-1">{L.statusLabel}</p>
                 <h4 className="text-2xl font-black tracking-tight uppercase">{recommendationStatus}</h4>
+                {knockouts.length > 0 && (
+                  <p className="text-[11px] font-semibold mt-2 normal-case text-slate-600">{L.knockoutNote(knockouts.join(', '))}</p>
+                )}
               </div>
             </div>
           </div>
@@ -550,7 +601,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
 
             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 catatan-khusus">
               <h5 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">{L.notes}</h5>
-              <p className="text-sm text-slate-600 leading-relaxed italic">
+              <p className="text-sm text-slate-600 leading-relaxed italic text-justify" lang={lang} style={{ hyphens: 'auto' }}>
                 "{displayData.conclusion?.notes || L.notesNA}"
               </p>
             </div>
@@ -595,8 +646,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
               {data.map((cand, idx) => {
-                const { cv, cog, papi, total } = getCandidateStats(cand);
-                const isSuitable = total >= 60;
+                const { cv, cog, papi, total, band } = getCandidateStats(cand);
                 return (
                   <tr key={cand.identity?.name || idx} className="hover:bg-slate-50/50 transition">
                     <td className="p-4 font-bold text-slate-900">{cand.identity?.name || '-'}</td>
@@ -612,9 +662,9 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
                     <td className="p-4 text-center">
                       <span className={cn(
                         "px-3 py-1 rounded-full font-black text-[10px]",
-                        isSuitable ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                        band === 'disarankan' ? "bg-emerald-100 text-emerald-700" : band === 'dipertimbangkan' ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
                       )}>
-                        {isSuitable ? L.statusSuitable : L.statusNotSuitable}
+                        {getRecommendationStatus(band, lang)}
                       </span>
                     </td>
                     <td className="p-4 text-center">

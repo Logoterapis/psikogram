@@ -146,7 +146,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
 
       // Get active profile aspects if available
       const activeProfile = profiles.find(p => p.id === activeProfileId);
-      const profileAspects = activeProfile?.papiAspects || (generatedPapi?.papi_aspects?.map(a => ({ code: a.code, name: a.name, ideal_range: a.ideal_range, reason: a.reason })) || undefined);
+      const profileAspects = activeProfile?.papiAspects || (generatedPapi?.papi_aspects?.map(a => ({ code: a.code, name: a.name, ideal_range: a.ideal_range, reason: a.reason, priority: a.priority })) || undefined);
 
       onAnalyze(candidatesPayload, jdPayload, papiStandard, selectedModel, profileAspects);
     } catch (err) {
@@ -161,7 +161,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
     const saved = saveProfile(
       posName,
       generatedPapi.role_summary,
-      generatedPapi.papi_aspects.map(a => ({ code: a.code, name: a.name, ideal_range: a.ideal_range, reason: a.reason })),
+      generatedPapi.papi_aspects.map(a => ({ code: a.code, name: a.name, ideal_range: a.ideal_range, reason: a.reason, priority: a.priority })),
       generatedPapi.codes_string
     );
     setActiveProfileId(saved.id);

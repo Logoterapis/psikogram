@@ -302,7 +302,9 @@ ATURAN KETAT:
 - Array 'papi_aspects' HARUS berjumlah TEPAT ${aspectCount} elemen
 - ideal_range harus KONSISTEN dengan standar per jabatan yang diberikan di atas
 - reason harus SPESIFIK merujuk ke tugas/tanggung jawab dalam JD, bukan generik
-- role_summary harus mencakup: jenis jabatan yang teridentifikasi, profil ideal singkat, dan red flag utama`;
+- role_summary harus mencakup: jenis jabatan yang teridentifikasi, profil ideal singkat, dan red flag utama
+- Setiap aspek WAJIB punya field 'priority': "kritikal" (HARUS dimiliki, sekitar 40-60% dari seluruh aspek), "pendukung" (menunjang kinerja, bukan showstopper), atau "risiko" (red flag bila terlalu tinggi/rendah)
+- Bedakan ideal_range: aspek "kritikal" gunakan rentang yang ketat (misal 7-9), aspek "pendukung" boleh lebih longgar (misal 5-7); jangan menyamakan semua rentang`;
 }
 
 /**
