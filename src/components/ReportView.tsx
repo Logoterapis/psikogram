@@ -4,7 +4,7 @@ import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Responsi
 import { FileDown, ArrowLeft, CheckCircle2, AlertCircle, HelpCircle, AlertTriangle, User, Briefcase, Calendar, Brain, FileText, Target, Award, Globe, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
-import { translateWithDeepSeek } from '../lib/deepseek';
+import { translateReport } from '../lib/ai-client';
 
 type Lang = 'id' | 'en';
 
@@ -197,7 +197,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onUpdate }
       if (!candidateData.translatedData?.en) {
         setIsTranslating(true);
         try {
-          const translatedEn = await translateWithDeepSeek(candidateData, 'English');
+          const translatedEn = await translateReport(candidateData);
           const updatedCandidate = { 
             ...candidateData, 
             translatedData: { ...candidateData.translatedData, en: translatedEn } 

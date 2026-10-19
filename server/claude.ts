@@ -1,7 +1,13 @@
-import { PsychogramData, CostDetail, JobProfileAspect } from "../types";
-import { buildPapiStandardSystemPrompt, buildPapiInterpretationGuide } from "./papi-constants";
+import { PsychogramData, CostDetail, JobProfileAspect } from "../src/types";
+import { buildPapiStandardSystemPrompt, buildPapiInterpretationGuide } from "../src/lib/papi-constants";
 
-const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions";
+const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
+const CLAUDE_MODEL = "claude-sonnet-4-20250514";
+
+// Pricing: Claude Sonnet 4 — $3/1M input, $15/1M output
+const CLAUDE_INPUT_USD_PER_1M = 3.0;
+const CLAUDE_OUTPUT_USD_PER_1M = 15.0;
+const USD_TO_IDR = 17_500;
 
 interface ExtractedRawData {
   identity: {
@@ -19,13 +25,13 @@ interface ExtractedRawData {
   costs?: CostDetail[];
 }
 
-export async function analyzeWithDeepSeek(
+export async function analyzeWithClaude(
   extractedData: ExtractedRawData,
-  deepseekApiKey: string,
-  model: string = "deepseek-chat",
+  claudeApiKey: string,
+  model: string = CLAUDE_MODEL,
   profileAspects?: JobProfileAspect[]
 ): Promise<PsychogramData> {
-  if (!deepseekApiKey) throw new Error("DeepSeek API Key tidak ditemukan.");
+  if (!claudeApiKey) throw new Error("Claude API Key tidak ditemukan.");
 
   const standardCodes = extractedData.papi_standard
     ? extractedData.papi_standard.split(',').map(s => s.trim()).filter(Boolean)
@@ -171,20 +177,22 @@ ${(() => {
 Silakan analisis dan berikan output JSON sesuai format yang diminta.`;
 
   try {
-    const response = await fetch(DEEPSEEK_API_URL, {
+    const response = await fetch(CLAUDE_API_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${deepseekApiKey}`,
+        "x-api-key": claudeApiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
       },
       body: JSON.stringify({
         model: model,
+        max_tokens: 8192,
+        system: systemPrompt,
         messages: [
-          { role: "system", content: systemPrompt },
           { role: "user", content: userMessage },
         ],
         temperature: 0.1,
-        response_format: { type: "json_object" },
       }),
     });
 
@@ -192,35 +200,47 @@ Silakan analisis dan berikan output JSON sesuai format yang diminta.`;
       const errorData = await response.json().catch(() => ({}));
       const errorMessage = (errorData as any)?.error?.message || `HTTP ${response.status}`;
       if (response.status === 401) {
-        throw new Error("DeepSeek API Key tidak valid. Silakan periksa kembali.");
+        throw new Error("Claude API Key tidak valid. Silakan periksa kembali.");
       }
-      throw new Error(`DeepSeek API Error: ${errorMessage}`);
+      throw new Error(`Claude API Error: ${errorMessage}`);
     }
 
-    const data = await response.json();
-    const content = (data as any).choices?.[0]?.message?.content;
+    const data = await response.json() as any;
+    const contentBlock = data.content?.[0];
+    const content = contentBlock?.text;
 
     if (!content) {
-      throw new Error("DeepSeek memberikan respons kosong.");
+      throw new Error("Claude memberikan respons kosong.");
     }
 
-    const result = JSON.parse(content) as PsychogramData;
+    // Claude may wrap JSON in markdown code blocks, strip them
+    const cleanedContent = content.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```$/i, '').trim();
+    const result = JSON.parse(cleanedContent) as PsychogramData;
 
     // Enforce PAPI count
     if (result.papi && Array.isArray(result.papi)) {
       result.papi = result.papi.slice(0, count);
     }
 
+    // Cost tracking
     result.costs = extractedData.costs || [];
     if (data.usage) {
-      const inputTokens = data.usage.prompt_tokens || 0;
-      const outputTokens = data.usage.completion_tokens || 0;
-      // DeepSeek: $0.14/1M in, $0.28/1M out. IDR 17,500 per USD
-      const inputCost = (inputTokens / 1_000_000) * 0.14 * 17_500;
-      const outputCost = (outputTokens / 1_000_000) * 0.28 * 17_500;
+      const inputTokens = data.usage.input_tokens || 0;
+      const outputTokens = data.usage.output_tokens || 0;
+      const inputCost = (inputTokens / 1_000_000) * CLAUDE_INPUT_USD_PER_1M * USD_TO_IDR;
+      const outputCost = (outputTokens / 1_000_000) * CLAUDE_OUTPUT_USD_PER_1M * USD_TO_IDR;
+
+      console.log(`\n%c[Claude Cost] Analisis Psikologi`, 'color: #7c3aed; font-weight: bold; font-size: 13px');
+      console.log(`  📥 Input tokens:    ${inputTokens.toLocaleString('id-ID')}`);
+      console.log(`  📤 Output tokens:   ${outputTokens.toLocaleString('id-ID')}`);
+      console.log(`  💲 Input cost:      Rp ${inputCost.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      console.log(`  💲 Output cost:     Rp ${outputCost.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      console.log(`  %c💰 TOTAL:           Rp ${(inputCost + outputCost).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'color: #7c3aed; font-weight: bold');
+      console.log('');
+
       result.costs.push({
         model: model,
-        task: "Analisis Psikologi (DeepSeek)",
+        task: "Analisis Psikologi (Claude)",
         inputTokens,
         outputTokens,
         totalRupiah: inputCost + outputCost
@@ -230,21 +250,21 @@ Silakan analisis dan berikan output JSON sesuai format yang diminta.`;
     return result;
 
   } catch (error: any) {
-    console.error("DeepSeek analysis failed:", error);
+    console.error("Claude analysis failed:", error instanceof Error ? error.name : 'Unknown error');
     if (error instanceof SyntaxError) {
-      throw new Error("DeepSeek mengembalikan format JSON yang tidak valid. Silakan coba lagi.");
+      throw new Error("Claude mengembalikan format JSON yang tidak valid. Silakan coba lagi.");
     }
-    throw new Error(error.message || "Terjadi kesalahan saat memproses data dengan DeepSeek.");
+    throw new Error(error.message || "Terjadi kesalahan saat memproses data dengan Claude.");
   }
 }
 
-export async function translateWithDeepSeek(
+export async function translateWithClaude(
   data: PsychogramData,
   targetLang: string = 'English',
   customApiKey?: string
 ): Promise<PsychogramData['translatedData']['en']> {
-  const apiKey = customApiKey || (process.env as any).DEEPSEEK_API_KEY;
-  if (!apiKey) throw new Error("DeepSeek API Key tidak ditemukan.");
+  const apiKey = customApiKey || (process.env as any).CLAUDE_API_KEY;
+  if (!apiKey) throw new Error("Claude API Key tidak ditemukan.");
 
   const payloadToTranslate = {
     cognitive: {
@@ -277,20 +297,22 @@ Ensure arrays (like pros, cons, strengths, risks) remain arrays of translated st
 CRITICAL: Return ONLY valid JSON format. Do not include markdown code block syntax like \`\`\`json. Return the pure JSON string so it can be parsed.`;
 
   try {
-    const response = await fetch(DEEPSEEK_API_URL, {
+    const response = await fetch(CLAUDE_API_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
       },
       body: JSON.stringify({
-        model: "deepseek-chat",
+        model: CLAUDE_MODEL,
+        max_tokens: 4096,
+        system: systemPrompt,
         messages: [
-          { role: "system", content: systemPrompt },
           { role: "user", content: JSON.stringify(payloadToTranslate) },
         ],
         temperature: 0.1,
-        response_format: { type: "json_object" },
       }),
     });
 
@@ -298,12 +320,13 @@ CRITICAL: Return ONLY valid JSON format. Do not include markdown code block synt
       throw new Error("Translation request failed.");
     }
 
-    const responseData = await response.json();
-    const content = (responseData as any).choices?.[0]?.message?.content;
+    const responseData = await response.json() as any;
+    const content = responseData.content?.[0]?.text;
     
     if (!content) throw new Error("Translation empty response.");
 
-    const result = JSON.parse(content);
+    const cleanedContent = content.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```$/i, '').trim();
+    const result = JSON.parse(cleanedContent);
 
     const translatedData = {
       cognitive: { ...data.cognitive, ...result.cognitive },
@@ -318,23 +341,23 @@ CRITICAL: Return ONLY valid JSON format. Do not include markdown code block synt
 
     return translatedData as any;
   } catch (error: any) {
-    console.error("DeepSeek translation failed:", error);
+    console.error("Claude translation failed:", error instanceof Error ? error.name : 'Unknown error');
     throw new Error(error.message || "Failed to translate report.");
   }
 }
 
-export async function generatePapiStandardWithDeepSeek(
+export async function generatePapiStandardWithClaude(
   jobDesc: string | { data: string, mimeType: string },
   aspectCount: number = 10,
-  deepseekApiKey: string,
-  model: string = "deepseek-chat"
+  claudeApiKey: string,
+  model: string = CLAUDE_MODEL
 ): Promise<{ role_summary: string, codes_string: string, papi_aspects: any[] }> {
-  if (!deepseekApiKey) throw new Error("DeepSeek API Key tidak ditemukan.");
+  if (!claudeApiKey) throw new Error("Claude API Key tidak ditemukan.");
 
   const jobDescText = typeof jobDesc === 'string' ? jobDesc : jobDesc.data;
   
   const systemPrompt = buildPapiStandardSystemPrompt(aspectCount) + `
-  
+
 OUTPUT TEPAT HARUS JSON DENGAN FORMAT:
 {
   "role_summary": "string ringkasan profil jabatan (termasuk jenis jabatan, profil ideal, dan red flag)",
@@ -348,23 +371,26 @@ OUTPUT TEPAT HARUS JSON DENGAN FORMAT:
   ]
 }
 
-Array 'papi_aspects' HARUS berjumlah TEPAT ${aspectCount} elemen.`;
+Array 'papi_aspects' HARUS berjumlah TEPAT ${aspectCount} elemen.
+CRITICAL: Return ONLY valid JSON. Do not include markdown code blocks.`;
 
   try {
-    const response = await fetch(DEEPSEEK_API_URL, {
+    const response = await fetch(CLAUDE_API_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${deepseekApiKey}`,
+        "x-api-key": claudeApiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
       },
       body: JSON.stringify({
         model: model,
+        max_tokens: 4096,
+        system: systemPrompt,
         messages: [
-          { role: "system", content: systemPrompt },
           { role: "user", content: `Analisis JD berikut:\n${jobDescText}` }
         ],
         temperature: 0.2,
-        response_format: { type: "json_object" },
       }),
     });
 
@@ -372,19 +398,20 @@ Array 'papi_aspects' HARUS berjumlah TEPAT ${aspectCount} elemen.`;
       const errorData = await response.json().catch(() => ({}));
       const errorMessage = (errorData as any)?.error?.message || `HTTP ${response.status}`;
       if (response.status === 401) {
-        throw new Error("DeepSeek API Key tidak valid. Silakan periksa kembali.");
+        throw new Error("Claude API Key tidak valid. Silakan periksa kembali.");
       }
-      throw new Error(`DeepSeek API Error: ${errorMessage}`);
+      throw new Error(`Claude API Error: ${errorMessage}`);
     }
 
-    const data = await response.json();
-    const content = (data as any).choices?.[0]?.message?.content;
+    const data = await response.json() as any;
+    const content = data.content?.[0]?.text;
 
     if (!content) {
-      throw new Error("DeepSeek memberikan respons kosong.");
+      throw new Error("Claude memberikan respons kosong.");
     }
 
-    const result = JSON.parse(content);
+    const cleanedContent = content.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```$/i, '').trim();
+    const result = JSON.parse(cleanedContent);
     if (result.papi_aspects && Array.isArray(result.papi_aspects)) {
       result.papi_aspects = result.papi_aspects.slice(0, aspectCount);
       result.codes_string = result.papi_aspects.map((item: any) => item.code).join(', ');
@@ -393,10 +420,10 @@ Array 'papi_aspects' HARUS berjumlah TEPAT ${aspectCount} elemen.`;
     return result;
 
   } catch (error: any) {
-    console.error("DeepSeek PAPI generation failed:", error);
+    console.error("Claude PAPI generation failed:", error instanceof Error ? error.name : 'Unknown error');
     if (error instanceof SyntaxError) {
-      throw new Error("DeepSeek mengembalikan format JSON yang tidak valid. Silakan coba lagi.");
+      throw new Error("Claude mengembalikan format JSON yang tidak valid. Silakan coba lagi.");
     }
-    throw new Error(error.message || "Gagal merumuskan standar dengan DeepSeek.");
+    throw new Error(error.message || "Gagal merumuskan standar dengan Claude.");
   }
 }

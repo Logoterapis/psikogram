@@ -3,9 +3,7 @@ import { InputForm } from './components/InputForm';
 import { ReportView } from './components/ReportView';
 import { HistoryList } from './components/HistoryList';
 import { useHistory } from './hooks/useHistory';
-import { analyzePsychogram, extractRawDataFromPdf } from './lib/gemini';
-import { analyzeWithDeepSeek } from './lib/deepseek';
-import { analyzeWithClaude } from './lib/claude';
+import { analyzeCandidate } from './lib/ai-client';
 import { PsychogramData, JobProfileAspect } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 import { BrainCircuit, Sparkles, ShieldCheck } from 'lucide-react';
@@ -21,7 +19,6 @@ export default function App() {
     candidates: { name: string; psikotesBase64: string; cvBase64: string | null }[],
     jobDesc: string | { data: string, mimeType: string },
     papiStandard: string,
-    apiKey: string,
     model: string,
     profileAspects?: JobProfileAspect[]
   ) => {
@@ -34,16 +31,10 @@ export default function App() {
         const candidate = candidates[i];
         setLoadingProgress({ current: i + 1, total, candidateName: candidate.name });
 
-        let data: PsychogramData;
-        if (model === 'deepseek') {
-          const extractedData = await extractRawDataFromPdf(candidate.psikotesBase64, candidate.cvBase64, jobDesc, papiStandard, apiKey, "gemini-2.5-flash");
-          data = await analyzeWithDeepSeek(extractedData, (process.env as any).DEEPSEEK_API_KEY, "deepseek-chat", profileAspects);
-        } else if (model === 'claude') {
-          const extractedData = await extractRawDataFromPdf(candidate.psikotesBase64, candidate.cvBase64, jobDesc, papiStandard, apiKey, "gemini-2.5-flash");
-          data = await analyzeWithClaude(extractedData, (process.env as any).CLAUDE_API_KEY, "claude-sonnet-4-20250514", profileAspects);
-        } else {
-          data = await analyzePsychogram(candidate.psikotesBase64, candidate.cvBase64, jobDesc, papiStandard, apiKey, model, profileAspects);
-        }
+        const data: PsychogramData = await analyzeCandidate(
+          candidate.psikotesBase64, candidate.cvBase64, jobDesc, papiStandard,
+          model as 'gemini-2.5-flash' | 'deepseek' | 'claude', profileAspects,
+        );
 
         // Pastikan nama kandidat konsisten dengan form pairing
         if (data.identity) {

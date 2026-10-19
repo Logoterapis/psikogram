@@ -3,9 +3,7 @@ import { Upload, FileText, Briefcase, Target, Info, Loader2, FileUp, X, User, Ch
 import { motion, AnimatePresence } from 'motion/react';
 import mammoth from 'mammoth';
 import { cn } from '../lib/utils';
-import { generatePapiStandard } from '../lib/gemini';
-import { generatePapiStandardWithDeepSeek } from '../lib/deepseek';
-import { generatePapiStandardWithClaude } from '../lib/claude';
+import { generatePapiStandard } from '../lib/ai-client';
 import { useJobProfiles } from '../hooks/useJobProfiles';
 import { JobProfileAspect, CandidatePair } from '../types';
 
@@ -14,7 +12,6 @@ interface InputFormProps {
     candidates: { name: string; psikotesBase64: string; cvBase64: string | null }[],
     jobDesc: string | { data: string, mimeType: string },
     papiStandard: string,
-    apiKey: string,
     model: string,
     profileAspects?: JobProfileAspect[]
   ) => void;
@@ -151,7 +148,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
       const activeProfile = profiles.find(p => p.id === activeProfileId);
       const profileAspects = activeProfile?.papiAspects || (generatedPapi?.papi_aspects?.map(a => ({ code: a.code, name: a.name, ideal_range: a.ideal_range, reason: a.reason })) || undefined);
 
-      onAnalyze(candidatesPayload, jdPayload, papiStandard, "", selectedModel, profileAspects);
+      onAnalyze(candidatesPayload, jdPayload, papiStandard, selectedModel, profileAspects);
     } catch (err) {
       alert("Gagal memproses file. Pastikan semua file terbaca dengan baik.");
     }
@@ -190,16 +187,9 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
     setIsGeneratingPapi(true);
     try {
       const jdPayload = jdFile ? jdFile : jobDesc;
-      let result;
-      if (selectedModel === 'deepseek') {
-        const deepseekApiKey = (process.env as any).DEEPSEEK_API_KEY;
-        result = await generatePapiStandardWithDeepSeek(jdPayload, papiCount, deepseekApiKey, "deepseek-chat");
-      } else if (selectedModel === 'claude') {
-        const claudeApiKey = (process.env as any).CLAUDE_API_KEY;
-        result = await generatePapiStandardWithClaude(jdPayload, papiCount, claudeApiKey);
-      } else {
-        result = await generatePapiStandard(jdPayload, papiCount, "", "gemini-2.5-flash");
-      }
+      const result = await generatePapiStandard(
+        jdPayload, papiCount, selectedModel as 'gemini-2.5-flash' | 'deepseek' | 'claude',
+      );
       setGeneratedPapi(result);
       setPapiStandard(result.codes_string);
     } catch (error: any) {

@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { PsychogramData, CostDetail, JobProfileAspect } from "../types";
-import { buildPapiStandardSystemPrompt, buildPapiInterpretationGuide } from "./papi-constants";
+import { PsychogramData, CostDetail, JobProfileAspect } from "../src/types";
+import { buildPapiStandardSystemPrompt, buildPapiInterpretationGuide } from "../src/lib/papi-constants";
 
 // ============================================================
 // PRICING CONSTANTS (Gemini 2.5 Flash — April 2026)
@@ -361,7 +361,7 @@ OUTPUT HARUS JSON LENGKAP SESUAI SCHEMA DENGAN TEPAT ${count} ASPEK PAPI.`;
     }, selectedModel);
 
   } catch (error: any) {
-    console.error(`Analysis failed with model ${selectedModel}:`, error);
+    console.error(`Analysis failed with model ${selectedModel}:`, error instanceof Error ? error.name : 'Unknown error');
     if (error.message?.includes('API_KEY_INVALID')) {
       throw new Error("API Key tidak valid. Silakan periksa kembali kode API Anda.");
     }
@@ -542,7 +542,7 @@ ATURAN KETAT:
             });
           }
         } catch (e) {
-          console.warn("Failed to extract JD text from PDF, proceeding with placeholder.", e);
+          console.warn("Failed to extract JD text from PDF, proceeding with placeholder.");
         }
       }
 
@@ -550,7 +550,7 @@ ATURAN KETAT:
     }, selectedModel);
 
   } catch (error: any) {
-    console.error("Gemini Vision extraction failed:", error);
+    console.error("Gemini Vision extraction failed:", error instanceof Error ? error.name : 'Unknown error');
     if (error.message?.includes('API_KEY_INVALID')) {
       throw new Error("Gemini API Key tidak valid.");
     }
@@ -670,7 +670,7 @@ Ensure arrays (like pros, cons, strengths, risks) remain arrays of translated st
       return translatedData as any;
     }, "gemini-2.5-flash");
   } catch (error: any) {
-    console.error("Translation failed:", error);
+    console.error("Translation failed:", error instanceof Error ? error.name : 'Unknown error');
     throw new Error(error.message || "Failed to translate report.");
   }
 }

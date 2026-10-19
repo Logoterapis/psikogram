@@ -1,20 +1,15 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Psikogram
 
-# Run and deploy your AI Studio app
+The React app uses a Vercel Function at `/api/ai` for Gemini, DeepSeek, and Claude. Provider API keys are read only by that function. Do not add them to Vite `define` or any `VITE_` variable: those values become public browser code.
 
-This contains everything you need to run your app locally.
+## Local development
 
-View your app in AI Studio: https://ai.studio/apps/96378bbf-39d4-4253-95aa-2c79dfaabbd4
+1. Run `npm ci`.
+2. Copy `.env.example` to `.env.local` and set fresh API keys. Never commit `.env.local`.
+3. Run `npx vercel dev` to serve both the Vite app and `/api/ai`. `npm run dev` serves only the frontend, so AI actions will not work through it.
 
-## Run Locally
+## Vercel deployment
 
-**Prerequisites:**  Node.js
+Set `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, and `CLAUDE_API_KEY` as server-side environment variables for the environments you use. Gemini is required for every analysis mode, including the DeepSeek and Claude hybrid modes. Deploy again after changing environment variables.
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+The app handles private applicant documents. Enable Vercel Deployment Protection or equivalent authentication for the project before using the server-side AI endpoint in production. Restrict and monitor the provider keys and rotate all keys previously included in the browser bundle. Vercel Functions accept request bodies up to 4.5 MB; the app shows a size error above 4 MB to leave room for transport overhead.
