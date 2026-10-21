@@ -2,7 +2,8 @@ import type { PsychogramData, CostDetail, JobProfileAspect } from "../src/types.
 import { buildPapiStandardSystemPrompt, buildPapiInterpretationGuide } from "../src/lib/papi-constants.js";
 
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
-const CLAUDE_MODEL = "claude-sonnet-4-20250514";
+// claude-sonnet-4-20250514 was retired on 2026-06-15; use the current Sonnet.
+const CLAUDE_MODEL = "claude-sonnet-5-5";
 
 // Pricing: Claude Sonnet 4 — $3/1M input, $15/1M output
 const CLAUDE_INPUT_USD_PER_1M = 3.0;

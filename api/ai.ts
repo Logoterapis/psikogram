@@ -89,7 +89,7 @@ export async function POST(request: Request) {
       if (model === 'deepseek') {
         return Response.json(applyScoring(await analyzeWithDeepSeek(extracted, process.env.DEEPSEEK_API_KEY!, 'deepseek-v4-pro', aspects), aspects), { headers });
       }
-      return Response.json(applyScoring(await analyzeWithClaude(extracted, process.env.CLAUDE_API_KEY!, 'claude-sonnet-4-20250514', aspects), aspects), { headers });
+      return Response.json(applyScoring(await analyzeWithClaude(extracted, process.env.CLAUDE_API_KEY!, 'claude-sonnet-5-5', aspects), aspects), { headers });
     }
 
     if (!process.env.DEEPSEEK_API_KEY) return fail(503, 'Kunci DeepSeek belum dikonfigurasi di server.');
@@ -100,7 +100,16 @@ export async function POST(request: Request) {
     if (message.includes('CONSUMER_SUSPENDED')) return fail(503, 'Kunci Gemini ditangguhkan oleh Google. Buat kunci baru dan perbarui konfigurasi server.');
     if (message.includes('API_KEY_INVALID') || message.includes('PERMISSION_DENIED')) return fail(503, 'Kunci API ditolak oleh penyedia AI. Periksa konfigurasi server.');
     if (message.includes('RESOURCE_EXHAUSTED') || message.includes('429')) return fail(429, 'Batas penggunaan layanan AI tercapai. Coba lagi nanti.');
-    console.error('AI operation failed:', operation, error instanceof Error ? error.name : 'Unknown error');
+    if (message.includes('DeepSeek API Key tidak valid') || message.includes('Claude API Key tidak valid')) {
+      return fail(503, message);
+    }
+    if (/Insufficient Balance|insufficient_quota|credit balance is too low|HTTP 402/i.test(message)) {
+      return fail(503, 'Saldo/kuota akun penyedia AI (DeepSeek/Claude) habis. Isi saldo lalu coba lagi.');
+    }
+    if (/model.*(not found|does not exist|not_found)|not_found_error|HTTP 404/i.test(message)) {
+      return fail(502, 'Model AI yang dipilih tidak tersedia di penyedia. Hubungi admin untuk memperbarui nama model.');
+    }
+    console.error('AI operation failed:', operation, message.slice(0, 300));
     return fail(502, 'Layanan AI gagal memproses permintaan. Silakan coba lagi.');
   }
 }

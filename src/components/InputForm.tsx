@@ -257,7 +257,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onAnalyze, isLoading }) =>
                     : "border-slate-200 bg-white hover:border-slate-300"
                 )}
               >
-                <div className="text-xs font-black text-slate-900 mb-1">🎯 Claude Sonnet (Hybrid)</div>
+                <div className="text-xs font-black text-slate-900 mb-1">🎯 Claude Sonnet 5.5 (Hybrid)</div>
                 <p className="text-[10px] text-slate-500 font-medium leading-tight">Gemini OCR + Claude Analisis. Presisi tinggi & analitis.</p>
               </button>
             </div>
