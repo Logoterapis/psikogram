@@ -109,7 +109,7 @@ export async function POST(request: Request) {
     if (/model.*(not found|does not exist|not_found)|not_found_error|HTTP 404/i.test(message)) {
       return fail(502, 'Model AI yang dipilih tidak tersedia di penyedia. Hubungi admin untuk memperbarui nama model.');
     }
-    if (/^(Claude|DeepSeek) API Error:/.test(message)) {
+    if (/^(Claude|DeepSeek) API Error:|^Claude (terpotong|memberikan|mengembalikan)/.test(message)) {
       console.error('AI provider error:', operation, message.slice(0, 300));
       return fail(502, message.slice(0, 240));
     }

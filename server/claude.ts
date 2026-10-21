@@ -5,6 +5,25 @@ const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 // claude-sonnet-4-20250514 was retired on 2026-06-15; use the current Sonnet.
 const CLAUDE_MODEL = "claude-sonnet-5-5";
 
+// Ambil teks balasan Claude: lewati blok "thinking", gabungkan blok teks, dan
+// ekstrak objek JSON pertama (menoleransi pembuka/penutup teks atau code fence).
+function claudeText(data: any): string {
+  const blocks = Array.isArray(data?.content) ? data.content : [];
+  return blocks.filter((b: any) => b?.type === 'text' && typeof b.text === 'string').map((b: any) => b.text).join('\n');
+}
+
+function parseClaudeJson(data: any): any {
+  if (data?.stop_reason === 'max_tokens') {
+    throw new Error("Claude terpotong karena melebihi batas panjang keluaran. Kurangi jumlah aspek atau coba lagi.");
+  }
+  const text = claudeText(data);
+  if (!text) throw new Error("Claude memberikan respons kosong.");
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end <= start) throw new Error("Claude mengembalikan format JSON yang tidak valid. Silakan coba lagi.");
+  return JSON.parse(text.slice(start, end + 1));
+}
+
 // Pricing: Claude Sonnet 4 — $3/1M input, $15/1M output
 const CLAUDE_INPUT_USD_PER_1M = 3.0;
 const CLAUDE_OUTPUT_USD_PER_1M = 15.0;
@@ -189,7 +208,7 @@ Silakan analisis dan berikan output JSON sesuai format yang diminta.`;
       },
       body: JSON.stringify({
         model: model,
-        max_tokens: 8192,
+        max_tokens: 16000,
         system: systemPrompt,
         messages: [
           { role: "user", content: userMessage },
@@ -207,16 +226,7 @@ Silakan analisis dan berikan output JSON sesuai format yang diminta.`;
     }
 
     const data = await response.json() as any;
-    const contentBlock = data.content?.[0];
-    const content = contentBlock?.text;
-
-    if (!content) {
-      throw new Error("Claude memberikan respons kosong.");
-    }
-
-    // Claude may wrap JSON in markdown code blocks, strip them
-    const cleanedContent = content.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```$/i, '').trim();
-    const result = JSON.parse(cleanedContent) as PsychogramData;
+    const result = parseClaudeJson(data) as PsychogramData;
 
     // Enforce PAPI count
     if (result.papi && Array.isArray(result.papi)) {
@@ -321,12 +331,7 @@ CRITICAL: Return ONLY valid JSON format. Do not include markdown code block synt
     }
 
     const responseData = await response.json() as any;
-    const content = responseData.content?.[0]?.text;
-    
-    if (!content) throw new Error("Translation empty response.");
-
-    const cleanedContent = content.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```$/i, '').trim();
-    const result = JSON.parse(cleanedContent);
+    const result = parseClaudeJson(responseData);
 
     const translatedData = {
       cognitive: { ...data.cognitive, ...result.cognitive },
@@ -404,14 +409,7 @@ CRITICAL: Return ONLY valid JSON. Do not include markdown code blocks.`;
     }
 
     const data = await response.json() as any;
-    const content = data.content?.[0]?.text;
-
-    if (!content) {
-      throw new Error("Claude memberikan respons kosong.");
-    }
-
-    const cleanedContent = content.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```$/i, '').trim();
-    const result = JSON.parse(cleanedContent);
+    const result = parseClaudeJson(data);
     if (result.papi_aspects && Array.isArray(result.papi_aspects)) {
       result.papi_aspects = result.papi_aspects.slice(0, aspectCount);
       result.codes_string = result.papi_aspects.map((item: any) => item.code).join(', ');
