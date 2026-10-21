@@ -194,7 +194,6 @@ Silakan analisis dan berikan output JSON sesuai format yang diminta.`;
         messages: [
           { role: "user", content: userMessage },
         ],
-        temperature: 0.1,
       }),
     });
 
@@ -314,7 +313,6 @@ CRITICAL: Return ONLY valid JSON format. Do not include markdown code block synt
         messages: [
           { role: "user", content: JSON.stringify(payloadToTranslate) },
         ],
-        temperature: 0.1,
       }),
     });
 
@@ -393,7 +391,6 @@ CRITICAL: Return ONLY valid JSON. Do not include markdown code blocks.`;
         messages: [
           { role: "user", content: `Analisis JD berikut:\n${jobDescText}` }
         ],
-        temperature: 0.2,
       }),
     });
 
