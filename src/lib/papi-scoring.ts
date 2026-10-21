@@ -91,7 +91,7 @@ export interface PapiSummary {
 export function summarizePapi(papi: PapiAspect[] | undefined): PapiSummary {
   const list = papi || [];
   if (list.length === 0) return { weighted_match: 0, knockouts: [] };
-  const usable = list.filter(p => typeof p.match_percentage === 'number');
+  const usable = list.filter(p => !p.unreadable && typeof p.match_percentage === 'number');
   if (usable.length === 0) return { weighted_match: 0, knockouts: [] };
   const hasWeights = usable.some(p => typeof p.weight === 'number');
   const weights = hasWeights
@@ -122,7 +122,10 @@ export function applyScoring(data: PsychogramData, profileAspects?: JobProfileAs
     const priority = normalizePriority(p.priority) ?? priorityByCode.get(String(p.code).toUpperCase());
     const idealFromProfile = (profileAspects || []).find(a => String(a.code).toUpperCase() === String(p.code).toUpperCase())?.ideal_range;
     const r = scoreAspect(p.score, idealFromProfile || p.ideal_score, priority);
-    if (!r) return { ...p, priority };
+    if (!r) {
+      // Skor tidak terbaca: jangan dinilai dan jangan ikut dihitung dalam rata-rata.
+      return { ...p, priority, unreadable: true, fit: 'Tidak Terbaca', match_percentage: 0, fit_level: undefined, direction: undefined } as PapiAspect;
+    }
     return {
       ...p,
       priority,

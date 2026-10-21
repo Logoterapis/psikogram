@@ -39,6 +39,7 @@ export interface PapiAspect {
   direction?: 'within' | 'below' | 'above';
   priority?: AspectPriority;
   weight?: number;
+  unreadable?: boolean;
 }
 
 export interface Analysis {

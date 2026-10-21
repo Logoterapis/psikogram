@@ -152,7 +152,7 @@ const FIT_BADGE_CLASS: Record<FitLevel, string> = {
 // Laporan lama (tanpa fit_level) dinilai ulang di sisi klien dengan aturan yang sama.
 function ensureScored(cand: PsychogramData): PsychogramData {
   if (!cand.papi?.length) return cand;
-  return cand.papi.every(p => p.fit_level !== undefined) ? cand : applyScoring(cand);
+  return cand.papi.every(p => p.fit_level !== undefined || p.unreadable) ? cand : applyScoring(cand);
 }
 
 interface RadarChartWrapperProps {
